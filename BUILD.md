@@ -47,7 +47,7 @@ sudo dnf install -y python3-pip python3-virtualenv gcc make libusb1-devel pcsc-l
 3. Install build dependencies:
 
    ```bash
-   pip install -r ../requirements.txt
+   pip install -r requirements.txt
    ```
 
 4. Make the build script executable and run it:
@@ -83,7 +83,7 @@ sudo dnf install -y python3-pip python3-virtualenv gcc make libusb1-devel pcsc-l
 3. Install build dependencies:
 
    ```cmd
-   pip install -r ..\requirements.txt
+   pip install -r requirements.txt
    ```
 
 4. Run the build script:
