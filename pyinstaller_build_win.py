@@ -7,14 +7,26 @@ import tempfile
 import time
 import logging
 from pathlib import Path
+import sys
+
+# Configure logging with UTF-8 encoding
+class UTF8StreamHandler(logging.StreamHandler):
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            stream = self.stream
+            stream.write(msg + self.terminator)
+            self.flush()
+        except Exception:
+            self.handleError(record)
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler('build.log')
+        UTF8StreamHandler(),
+        logging.FileHandler('build.log', encoding='utf-8')
     ]
 )
 logger = logging.getLogger(__name__)
@@ -277,23 +289,57 @@ def main():
         # Run PyInstaller with output capture
         logger.info("Running PyInstaller...")
         try:
+            # Get the path to the PyInstaller executable in the virtual environment
+            if hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix):
+                # We're in a virtual environment
+                pyinstaller_path = os.path.join(sys.prefix, 'Scripts', 'pyinstaller.exe')
+            else:
+                # Not in a virtual environment, use the system pyinstaller
+                pyinstaller_path = 'pyinstaller'
+            
+            # Verify main.py exists in the project root
+            main_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'main.py')
+            if not os.path.exists(main_script):
+                raise FileNotFoundError(f"Main script not found at {main_script}")
+            
+            # Create data files list with absolute paths
+            data_dirs = ['script', 'assets', 'config', 'data']
+            add_data_args = []
+            
+            for data_dir in data_dirs:
+                src_path = os.path.join(project_root, data_dir)
+                if os.path.exists(src_path):
+                    add_data_args.extend(['--add-data', f'{src_path}{os.pathsep}{data_dir}'])
+            
             # First, run with --noconfirm to avoid any interactive prompts
             cmd = [
-                'pyinstaller',
+                pyinstaller_path,
                 '--clean',
                 '--noconfirm',
-                spec_file
+                '--workpath', os.path.join(temp_dir, 'build'),
+                '--distpath', os.path.join(temp_dir, 'dist'),
+                '--specpath', temp_dir,
+                '--name', 'NFC_Reader',
+                *add_data_args,
+                '--additional-hooks-dir', project_root,
+                main_script
             ]
             
             logger.info(f"Executing: {' '.join(cmd)}")
             
-            # Capture both stdout and stderr
-            result = subprocess.run(
-                cmd,
-                cwd=temp_dir,
-                capture_output=True,
-                text=True
-            )
+            # Run PyInstaller from the project root directory
+            try:
+                result = subprocess.run(
+                    cmd,
+                    cwd=project_root,
+                    capture_output=True,
+                    text=True,
+                    encoding='utf-8',
+                    errors='replace'
+                )
+            except Exception as e:
+                logger.error(f"Failed to execute PyInstaller: {str(e)}")
+                raise
             
             # Log the output
             if result.stdout:
