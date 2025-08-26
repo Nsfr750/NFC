@@ -12,6 +12,11 @@ from PySide6.QtWidgets import (
     QFrame
 )
 from PySide6.QtCore import Qt, Signal, QSettings
+from PySide6.QtWidgets import (
+    QDialog, QVBoxLayout, QLineEdit, QPushButton, 
+    QLabel, QMessageBox, QCheckBox, QFileDialog,
+    QFrame, QDialogButtonBox
+)
 from .password_strength import PasswordStrengthMeter, PasswordValidator
 from pathlib import Path
 
@@ -326,6 +331,85 @@ def verify_recovery_key(recovery_key_path: str, salt: bytes, password_hash: str)
     def is_password_set(self) -> bool:
         """Check if a password is set."""
         return bool(self.password_hash and self.salt)
+
+
+class LoginDialog(QDialog):
+    """Dialog for logging into the application."""
+    
+    def __init__(self, title: str, message: str, parent=None):
+        """Initialize the login dialog.
+        
+        Args:
+            title: Dialog title
+            message: Message to display
+            parent: Parent widget
+        """
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self.setWindowModality(Qt.ApplicationModal)
+        self.setMinimumWidth(300)
+        
+        self.auth_manager = AuthManager()
+        
+        # Create layout
+        layout = QVBoxLayout(self)
+        
+        # Add message
+        self.message_label = QLabel(message)
+        layout.addWidget(self.message_label)
+        
+        # Password field
+        self.password_edit = QLineEdit()
+        self.password_edit.setEchoMode(QLineEdit.Password)
+        self.password_edit.setPlaceholderText("Enter password")
+        layout.addWidget(QLabel("Password:"))
+        layout.addWidget(self.password_edit)
+        
+        # Show password checkbox
+        self.show_password = QCheckBox("Show password")
+        self.show_password.toggled.connect(self.toggle_password_visibility)
+        layout.addWidget(self.show_password)
+        
+        # Buttons
+        self.button_box = QDialogButtonBox(
+            QDialogButtonBox.Ok | QDialogButtonBox.Cancel
+        )
+        self.button_box.accepted.connect(self.verify)
+        self.button_box.rejected.connect(self.reject)
+        layout.addWidget(self.button_box)
+        
+        # Forgot password
+        self.forgot_button = QPushButton("Forgot Password?")
+        self.forgot_button.clicked.connect(self.show_recovery_dialog)
+        layout.addWidget(self.forgot_button)
+        
+    def toggle_password_visibility(self, checked: bool):
+        """Toggle password visibility."""
+        if checked:
+            self.password_edit.setEchoMode(QLineEdit.Normal)
+        else:
+            self.password_edit.setEchoMode(QLineEdit.Password)
+    
+    def verify(self):
+        """Verify the entered password."""
+        password = self.password_edit.text()
+        if not password:
+            QMessageBox.warning(self, "Error", "Please enter a password")
+            return
+            
+        if self.auth_manager.verify_password(password):
+            self.accept()
+        else:
+            QMessageBox.warning(self, "Error", "Incorrect password")
+            self.password_edit.clear()
+            self.password_edit.setFocus()
+    
+    def show_recovery_dialog(self):
+        """Show the password recovery dialog."""
+        from .recovery_dialog import RecoveryDialog
+        dialog = RecoveryDialog(self.auth_manager, self)
+        if dialog.exec() == QDialog.Accepted:
+            QMessageBox.information(self, "Success", "Password has been reset. Please log in with your new password.")
 
 
 class PasswordDialog(QDialog):

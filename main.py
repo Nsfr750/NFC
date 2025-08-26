@@ -612,6 +612,24 @@ class NFCApp(QMainWindow):
         self.status_label = QLabel("Status: Ready")
         self.statusBar().addPermanentWidget(self.status_label)
         
+    def lock_application(self):
+        """Lock the application, requiring authentication to continue."""
+        # Save the current state
+        self.was_reading = self.nfc_thread.read_mode
+        
+        # Stop any ongoing operations
+        self.nfc_thread.stop()
+        
+        # Show lock screen or dialog
+        from script.auth import LoginDialog
+        dialog = LoginDialog("Application Locked", "Enter your password to unlock", self)
+        if dialog.exec() == QtWidgets.QDialog.Accepted:
+            # Restore previous state
+            if self.was_reading:
+                self.start_reading()
+            return True
+        return False
+        
     def init_ui(self):
         """Initialize the main UI components."""
         # Create main widget and layout
