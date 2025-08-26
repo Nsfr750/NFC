@@ -1,0 +1,22 @@
+{
+  "url": {
+    "pattern": "^https?://\\S+$",
+    "description": "Web URL",
+    "template": "{data}"
+  },
+  "vcard": {
+    "pattern": "^BEGIN:VCARD\\n.*\\nEND:VCARD$",
+    "description": "vCard contact information",
+    "template": "{data}"
+  },
+  "wifi": {
+    "pattern": "^WIFI:S:(?P<ssid>[^;]+);T:(?P<type>[^;]+);P:(?P<password>[^;]+);;$",
+    "description": "WiFi network credentials",
+    "template": "SSID: {ssid}\nType: {type}\nPassword: {password}"
+  },
+  "json": {
+    "pattern": "^\\s*\\{.*\\}\\s*$",
+    "description": "JSON data",
+    "template": "{data}"
+  }
+}

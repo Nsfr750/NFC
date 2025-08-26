@@ -1,0 +1,25 @@
+# Core Dependencies
+PySide6>=6.4.0
+nfcpy>=1.0.4
+ndeflib>=0.3.1
+pyserial>=3.5
+pyudev>=0.22
+pyusb>=1.2.1
+pywinusb>=0.4.2; sys_platform == 'win32'
+pywin32>=306; sys_platform == 'win32'
+Wand>=0.6.0
+
+# Database
+sqlalchemy>=2.0.0
+
+# Development Dependencies
+pytest>=7.0.0
+pytest-qt>=4.0.0
+black>=23.0.0
+flake8>=6.0.0
+isort>=5.12.0
+mypy>=1.0.0
+
+# Build Dependencies
+pyinstaller>=5.0.0
+pyinstaller-hooks-contrib>=2023.0

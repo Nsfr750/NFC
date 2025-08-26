@@ -1,0 +1,122 @@
+# Changelog
+
+All notable changes to the NFC Reader/Writer application will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [1.0.0] - 2025-08-26
+
+### Added
+
+- **Tag Emulation**: Experimental support for emulating various NFC tag types
+- **Batch Operations**: Process multiple tags in sequence with automated workflows
+- **Custom Commands**: Advanced users can send raw APDU commands to tags
+- **Hex View**: Inspect and edit raw tag memory with hex editor
+- **Tag Types**: Added support for NTAG 21x series, MIFARE Classic 1K/4K, MIFARE Ultralight, and FeliCa Lite
+- **Real-time Monitoring**: Background scanning for tag presence detection
+- **Tag Database**: Store and manage known tags with custom metadata
+- **Export/Import**: Save and load tag data in multiple formats (JSON, binary, text)
+- **Advanced Logging**: Configurable logging with multiple verbosity levels
+- **Keyboard Shortcuts**: Quick access to common operations
+- **Themes**: Support for light, dark, and system themes
+- **Auto-update**: Check for and install application updates
+- **Command-line Interface**: Scriptable interface for automation
+- **Plugin System**: Extend functionality with custom plugins
+- **Tag Analysis**: Detailed tag information and memory analysis
+- **NDEF Tools**: Create, edit, and validate NDEF records
+- **Tag Cloning**: Duplicate compatible tags with a single click
+- **Password Protection**: Secure sensitive operations with password
+- **Tag Formatting**: Quick format tags for NDEF usage
+- **Custom Record Types**: Support for custom NDEF record types
+- **Tag Simulation**: Test applications with virtual tags
+- **System Tray**: Minimize to system tray for background operation
+- **Auto-save**: Automatic saving of unsaved changes
+- **Tag History**: Keep track of recently used tags
+- **Statistics**: Usage statistics and operation history
+- **Custom Themes**: Create and apply custom UI themes
+- **Command Palette**: Quick access to all features
+- **Context Help**: Integrated help system with tooltips
+- **Tag Comparison**: Compare two tags side by side
+- **Character Encoding**: Support for multiple character encodings
+- **Writing Presets**: Save and load common write configurations
+- **Data Validation**: Custom validation rules for tag data
+- **Contactless Payment**: Basic support for payment systems
+- **Tag Authentication**: Support for authenticated operations
+- **Memory Analysis**: Tools for analyzing tag memory layout
+- **Tag Emulation**: Emulate various tag types for testing
+- **NFC Forum Types**: Support for NFC Forum tag types 1-5
+- **Password Management**: Store and manage tag passwords securely
+- **ISO 14443**: Support for Type A and Type B cards
+- **Read/Write Protection**: Configure tag access permissions
+- **NDEF Support**: Comprehensive NDEF record handling
+- **Capacity Info**: Display detailed tag capacity information
+- **MIFARE DESFire**: Basic support for DESFire EV1/EV2/EV3
+- **Access Control**: Fine-grained control over tag access
+- **ISO 7816-4**: Support for ISO 7816-4 commands
+- **Tag Initialization**: Tools for initializing new tags
+- **NFC Type 1-4**: Support for all standard NFC tag types
+- **Tag Detection**: Improved tag presence detection
+- **FeliCa Support**: Basic support for Sony FeliCa cards
+- **History Tracking**: Track read/write operations
+- **ISO 15693**: Support for ISO 15693 tags
+- **Performance**: Optimized read/write operations
+- **Error Handling**: Comprehensive error handling and recovery
+- **Logging**: Detailed operation logging
+- **UI/UX**: Improved user interface and experience
+- **Accessibility**: Better keyboard navigation and screen reader support
+- **Localization**: Support for multiple languages
+- **Documentation**: Comprehensive user and developer documentation
+- **Testing**: Automated test suite
+- **Build System**: Streamlined build and deployment
+- **Dependencies**: Updated third-party libraries
+- **Security**: Improved security measures
+- **Performance**: Optimized performance and reduced memory usage
+- **Compatibility**: Improved compatibility with various NFC readers
+- **Stability**: General stability improvements and bug fixes
+
+### Changed
+
+- **Codebase**: Major refactoring for better maintainability and performance
+- **UI/UX**: Completely redesigned user interface with modern look and feel
+- **Performance**: Optimized tag reading/writing operations
+- **Error Handling**: More descriptive error messages and recovery options
+- **Documentation**: Updated documentation with new features and improvements
+- **Build System**: Simplified build and deployment process
+- **Dependencies**: Updated to latest stable versions
+- **Code Quality**: Improved code quality and test coverage
+- **Security**: Enhanced security measures and best practices
+- **Compatibility**: Better support for various NFC readers and tags
+- **Stability**: Improved application stability and reliability
+
+### Fixed
+
+- **Tag Detection**: Issues with certain tag types not being detected
+- **Memory Leaks**: Fixed memory leaks in NFC operations
+- **UI Freezes**: Improved UI responsiveness during operations
+- **Error Handling**: Better handling of edge cases and error conditions
+- **Compatibility**: Fixed issues with specific NFC readers
+- **Performance**: Optimized performance for large tag operations
+- **Security**: Addressed security vulnerabilities
+- **Localization**: Fixed translation issues
+- **Documentation**: Corrected inaccuracies in documentation
+- **Build System**: Fixed build issues on various platforms
+- **Dependencies**: Resolved compatibility issues with third-party libraries
+
+## [0.1.0] - 2025-08-26
+
+### Added
+
+- Initial public release of NFC Reader/Writer
+- Basic tag reading and writing functionality
+- Simple text-based UI for tag operations
+- Support for common NFC tag types (MIFARE Classic, NTAG, FeliCa)
+- Basic NDEF record handling
+- Simple settings and configuration
+- Basic error handling and user feedback
+- Logging system for debugging
+
+---
+
+*Note: This changelog follows the format specified in [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+For more details about the project, see the [README.md](README.md) file.*

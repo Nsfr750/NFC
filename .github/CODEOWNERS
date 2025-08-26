@@ -1,0 +1,33 @@
+# This file defines who is responsible for reviewing changes in the codebase
+# Format: <file pattern> @<username> [<additional-reviewers>]
+
+# Default owners for the entire repository
+* @Nsfr750
+
+# Core application files
+/main.py @Nsfr750
+/script/*.py @Nsfr750
+
+# Build and deployment
+/compiler/ @Nsfr750
+pyinstaller_*.py @Nsfr750
+
+# Configuration files
+/config/ @Nsfr750
+
+# Documentation
+/README.md @Nsfr750
+/CHANGELOG.md @Nsfr750
+/TO_DO.md @Nsfr750
+
+# Tests
+/tests/ @Nsfr750
+
+# GitHub specific files
+/.github/ @Nsfr750
+
+# Requirements and dependencies
+/requirements.txt @Nsfr750
+
+# License
+/LICENSE @Nsfr750

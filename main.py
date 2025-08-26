@@ -1,0 +1,1224 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+NFC Reader/Writer Application
+Copyright © 2025 Nsfr750
+"""
+
+import sys
+import os
+import nfc
+import time
+import logging
+from PySide6 import QtGui
+from PySide6.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QWidget, 
+                             QPushButton, QTextEdit, QLineEdit, QLabel, 
+                             QMessageBox, QMenuBar, QMenu, QToolBar, QStatusBar,
+                             QFileDialog, QInputDialog, QDialog, QVBoxLayout, QHBoxLayout,
+                             QTableWidget, QTableWidgetItem, QHeaderView, QSplitter,
+                             QTabWidget, QFormLayout, QComboBox, QCheckBox, QGroupBox,
+                             QSizePolicy, QSpacerItem, QFrame, QScrollArea, QDockWidget)
+from PySide6.QtCore import Qt, QThread, Signal, QTimer, QSize, QSettings, QByteArray, QMimeData, QUrl
+from PySide6.QtGui import QAction, QIcon, QPixmap, QTextCursor, QFont, QColor, QDragEnterEvent, QDropEvent
+import sys
+import os
+import logging
+import json
+import time
+import platform
+import traceback
+from datetime import datetime
+from typing import Optional, Dict, Any, List, Tuple, Union
+
+# Import local modules
+from script.version import __version__, APP_NAME, APP_DESCRIPTION, AUTHOR, LICENSE
+from script.device_panel import DevicePanel
+from script.emulation_dialog import EmulationDialog
+from script.encoding_utils import detect_encoding, convert_encoding, SUPPORTED_ENCODINGS
+from script.statistics import StatisticsManager
+from script.tag_formatter import TagFormatter
+from script.statistics_dialog import StatisticsDialog
+from script.tag_database import TagDatabase, TagRecord
+from script.tag_history_dialog import TagHistoryDialog
+from script.progress_dialog import ProgressDialog
+from script.settings_dialog import SettingsDialog
+from script.menu import AppMenu
+from script.toolbar import AppToolBar
+
+# Initialize database and statistics
+tag_db = TagDatabase()
+stats_manager = StatisticsManager()
+
+# Initialize logger
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(APP_NAME)
+
+class NFCThread(QThread):
+    """Thread for handling NFC operations with support for different tag types and error handling."""
+    
+    # Signals
+    tag_detected = Signal(dict)  # Emits dict with tag info
+    tag_read_progress = Signal(int, int)  # Emits (current, total) for read progress
+    tag_write_progress = Signal(int, int)  # Emits (current, total) for write progress
+    error_occurred = Signal(str, str)  # Emits (error_level, message)
+    reader_status = Signal(str)  # Emits reader connection status
+    
+    # Chunk size for reading/writing (in bytes)
+    CHUNK_SIZE = 1024  # 1KB chunks for read/write operations
+    
+    # Timeout for operations (in seconds)
+    OPERATION_TIMEOUT = 30
+    
+    # Supported tag types with their memory sizes (in bytes)
+    SUPPORTED_TYPES = {
+        'NFC Forum Type 1': {'type': 'nfc.ntag.ntag21x', 'size': 96},
+        'NFC Forum Type 2': {'type': 'nfc.ntag.ntag21x', 'size': 48},
+        'NFC Forum Type 3': {'type': 'nfc.felica', 'size': 8192},
+        'NFC Forum Type 4': {'type': 'nfc.iso14443.4a', 'size': 32768},
+        'MIFARE Classic': {'type': 'nfc.mifare.classic', 'size': 1024},
+        'MIFARE Ultralight': {'type': 'nfc.mifare.ultralight', 'size': 64},
+        'MIFARE DESFire': {'type': 'nfc.mifare.desfire', 'size': 8192},
+        'FeliCa': {'type': 'nfc.felica', 'size': 8192},
+        'ISO 14443-4': {'type': 'nfc.iso14443.4a', 'size': 32768},
+        'ISO 15693': {'type': 'nfc.iso15693', 'size': 2048},
+        'ISO 18092': {'type': 'nfc.iso18092', 'size': 2048},
+        'Jewel': {'type': 'nfc.jewel', 'size': 64},
+        'Topaz': {'type': 'nfc.topaz', 'size': 64},
+    }
+    
+    # Default memory size for unknown tag types (4KB)
+    DEFAULT_TAG_SIZE = 4096
+    
+    def __init__(self):
+        super().__init__()
+        self.running = False
+        self.write_data = None
+        self.read_mode = True
+        self.clf = None
+        self.current_tag = None
+        self._init_logging()
+    
+    def _init_logging(self):
+        """Initialize logging for the NFC thread."""
+        from script.logging_utils import setup_logging
+        self.log_file = setup_logging()
+        self.logger = logging.getLogger('NFCThread')
+    
+    def run(self):
+        """Main thread loop for NFC operations."""
+        self.running = True
+        self.logger.info("NFC thread started")
+        
+        try:
+            with nfc.ContactlessFrontend('usb') as self.clf:
+                if not self.clf:
+                    self.error_occurred.emit("ERROR", "NFC reader not found")
+                    return
+                    
+                self.reader_status.emit("connected")
+                self.logger.info("NFC reader connected")
+                
+                while self.running:
+                    try:
+                        tag = self.clf.connect(
+                            rdwr={
+                                'on-connect': self.on_connect,
+                                'on-discover': self.on_discover,
+                                'on-release': self.on_release,
+                                'beep-on-connect': False,
+                                'targets': ['106A', '106B', '212F', '424F']
+                            },
+                            terminate=lambda: not self.running
+                        )
+                        if tag and self.running:
+                            time.sleep(1)  # Prevent multiple rapid reads
+                    except nfc.clf.CommunicationError as e:
+                        self.logger.warning(f"Communication error: {str(e)}")
+                        time.sleep(0.5)
+                    except Exception as e:
+                        self.logger.error(f"Unexpected error in read loop: {str(e)}", exc_info=True)
+                        self.error_occurred.emit("ERROR", f"Reader error: {str(e)}")
+                        time.sleep(1)
+                        
+        except OSError as e:
+            self.reader_status.emit("disconnected")
+            self.logger.warning(f"Reader disconnected: {str(e)}")
+            self.error_occurred.emit("WARNING", "NFC reader disconnected")
+        
+        self.logger.info("NFC thread stopped")
+    
+    def on_discover(self, tag):
+        """Called when a tag is discovered."""
+        self.current_tag = tag
+        tag_type = self.SUPPORTED_TYPES.get(tag.type, tag.type)
+        self.logger.info(f"Tag detected: {tag_type} ({tag.identifier.hex()})")
+        return True
+    
+    def on_release(self, tag):
+        """Called when a tag is released."""
+        self.logger.debug(f"Tag released: {tag.identifier.hex()}")
+        self.current_tag = None
+    
+    def on_connect(self, tag):
+        """Handle tag connection and dispatch to appropriate handler."""
+        try:
+            tag_info = {
+                'id': tag.identifier.hex(),
+                'type': self.SUPPORTED_TYPES.get(tag.type, tag.type),
+                'writable': tag.ndef is not None and tag.ndef.is_writeable,
+                'formatted': tag.ndef is not None,
+                'records': []
+            }
+            
+            if self.read_mode:
+                self.read_tag(tag, tag_info)
+            elif self.write_data:
+                self.write_tag(tag, tag_info)
+            else:
+                self.tag_detected.emit(tag_info)
+                
+            return True
+            
+        except nfc.tag.TagCommandError as e:
+            self.logger.error(f"Tag command error: {str(e)}")
+            self.error_occurred.emit("ERROR", f"Tag error: {str(e)}")
+            return False
+        except Exception as e:
+            self.logger.error(f"Error in on_connect: {str(e)}", exc_info=True)
+            self.error_occurred.emit("ERROR", f"Operation failed: {str(e)}")
+            return False
+    
+    def _parse_ndef_record(self, record):
+        """Parse an NDEF record into a readable format."""
+        record_info = {
+            'type': record.type,
+            'name': record.name,
+            'tnf': str(record.tnf),
+            'payload': record.data.hex(),
+            'size': len(record.data)
+        }
+        
+        try:
+            if record.type == 'text':
+                record_info['data'] = record.text
+                record_info['language'] = record.language if hasattr(record, 'language') else 'en'
+                record_info['encoding'] = 'UTF-8' if hasattr(record, 'encoding') and record.encoding == 'utf-8' else 'UTF-16'
+            
+            elif record.type == 'uri':
+                record_info['uri'] = record.uri
+            
+            elif record.type == 'mime':
+                record_info['mime_type'] = record.mime_type
+                record_info['data'] = record.data.decode('utf-8', errors='replace')
+            
+            elif record.type == 'external':
+                record_info['domain'] = record.domain
+                record_info['type'] = record.type
+                record_info['data'] = record.data.decode('utf-8', errors='replace')
+            
+            elif record.type == 'smart-poster':
+                record_info['title'] = record.title
+                record_info['uri'] = record.uri
+                if hasattr(record, 'action'):
+                    record_info['action'] = str(record.action)
+            
+            return record_info
+            
+        except Exception as e:
+            self.logger.warning(f"Error parsing NDEF record: {str(e)}")
+            return record_info
+    
+    def read_tag(self, tag, tag_info):
+        """Read data from an NFC tag with enhanced NDEF support and record statistics."""
+        
+        rt_time = time.time()
+        try:
+            # Read NDEF message if available
+            ndef_data = None
+            data_size = 0
+            if tag.ndef:
+                try:
+                    ndef_data = tag.ndef.message.pretty()
+                    if ndef_data:
+                        data_size = len(ndef_data.encode('utf-8'))
+                except Exception as e:
+                    self.logger.warning(f"Error reading NDEF data: {str(e)}")
+                    raise  # Re-raise to be caught by the outer try-except
+            
+            # Get tag information
+            tag_info['ndef'] = ndef_data
+            tag_info['size'] = data_size
+            
+            # Read NDEF records
+            if tag.ndef:
+                for record in tag.ndef.records:
+                    record_info = self._parse_ndef_record(record)
+                    tag_info['records'].append(record_info)
+            
+            # Record successful read operation
+            record_operation(
+                operation_type='read',
+                tag_type=str(tag.type) if hasattr(tag, 'type') else 'unknown',
+                success=True,
+                data_size=data_size,
+                duration=time.time() - start_time
+            )
+            
+            return {
+                'success': True,
+                'data': ndef_data,
+                'size': data_size,
+                'read_time': time.time() - start_time,
+                'tag_type': str(tag.type)
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error reading tag: {str(e)}")
+            return {
+                'success': False,
+                'error': str(e),
+                'read_time': time.time() - start_time
+            }
+    
+    def _is_tag_lockable(self, tag):
+        """Check if the tag supports locking."""
+        # Check for common tag types that support locking
+        if hasattr(tag, 'is_protected') and callable(tag.is_protected):
+            return True
+        if hasattr(tag, 'protect') and callable(tag.protect):
+            return True
+        if hasattr(tag, 'memory') and hasattr(tag.memory, 'protect'):
+            return True
+        return False
+    
+    def _is_tag_locked(self, tag):
+        """Check if the tag is locked."""
+        try:
+            if hasattr(tag, 'is_protected') and callable(tag.is_protected):
+                return tag.is_protected()
+            if hasattr(tag, 'memory') and hasattr(tag.memory, 'is_locked'):
+                return tag.memory.is_locked()
+            return False
+        except Exception as e:
+            self.logger.warning(f"Error checking if tag is locked: {str(e)}")
+            return False
+    
+    def write_tag(self, tag, text):
+        """Write text to an NFC tag with verification and locking support and record statistics."""
+        start_time = time.time()
+        try:
+            if not tag.ndef:
+                error_msg = "Tag is not NDEF formatted"
+                self.error_occurred.emit("ERROR", error_msg)
+                record_operation(
+                    operation_type='write',
+                    tag_type=str(tag.type) if hasattr(tag, 'type') else 'unknown',
+                    success=False,
+                    data_size=0,
+                    duration=time.time() - start_time,
+                    error=error_msg
+                )
+                return False
+                
+            # Format the text using the tag formatter if needed
+            formatted_text = tag_formatter.format_data(text)
+            data_size = len(formatted_text.encode('utf-8'))
+                
+            # Create a new NDEF message with a text record
+            record = ndef.TextRecord(formatted_text)
+            tag.ndef.records = [record]
+            
+            # Record successful write operation
+            record_operation(
+                operation_type='write',
+                tag_type=str(tag.type) if hasattr(tag, 'type') else 'unknown',
+                success=True,
+                data_size=data_size,
+                duration=time.time() - start_time
+            )
+            
+            return True
+            
+        except Exception as e:
+            error_msg = f"Error writing to tag: {e}"
+            self.error_occurred.emit("ERROR", error_msg)
+            record_operation(
+                operation_type='write',
+                tag_type=str(tag.type) if 'tag' in locals() and hasattr(tag, 'type') else 'unknown',
+                success=False,
+                data_size=len(text.encode('utf-8')) if text else 0,
+                duration=time.time() - start_time,
+                error=error_msg
+            )
+            return False
+    
+    def lock_tag(self, tag, permanent=False):
+        """
+        Lock the tag to prevent further writes.
+        
+        Args:
+            tag: The NFC tag to lock
+            permanent: If True, lock permanently (irreversible)
+            
+        Returns:
+            tuple: (success: bool, message: str)
+        """
+        try:
+            if not self._is_tag_lockable(tag):
+                return False, "Tag does not support locking"
+                
+            if self._is_tag_locked(tag):
+                return True, "Tag is already locked"
+                
+            # Handle different tag types
+            if hasattr(tag, 'protect') and callable(tag.protect):
+                tag.protect(True, permanent=permanent)
+                return True, "Tag locked successfully"
+                
+            elif hasattr(tag, 'memory') and hasattr(tag.memory, 'lock'):
+                tag.memory.lock(permanent=permanent)
+                return True, "Tag locked successfully"
+                
+            return False, "Locking not supported on this tag type"
+            
+        except Exception as e:
+            error_msg = f"Error locking tag: {str(e)}"
+            self.logger.error(error_msg, exc_info=True)
+            return False, error_msg
+    
+    def write_tag(self, tag, tag_info):
+        """Write data to an NFC tag with verification and locking support."""
+        try:
+            # Check if tag is locked
+            if self._is_tag_locked(tag):
+                raise Exception("Cannot write to a locked tag")
+                
+            if not tag.ndef:
+                if hasattr(tag, 'format'):
+                    tag.format()
+                    tag_info['formatted'] = True
+                else:
+                    raise Exception("Tag is not NDEF formattable")
+            
+            # Parse the write data to determine record type
+            if isinstance(self.write_data, dict):
+                # Handle structured write data
+                if self.write_data.get('type') == 'text':
+                    record = ndef.TextRecord(
+                        self.write_data.get('text', ''),
+                        self.write_data.get('language', 'en'),
+                        self.write_data.get('encoding', 'utf-8')
+                    )
+                elif self.write_data.get('type') == 'uri':
+                    record = ndef.UriRecord(self.write_data.get('uri', ''))
+                elif self.write_data.get('type') == 'mime':
+                    record = ndef.MimeRecord(
+                        self.write_data.get('mime_type', 'text/plain'),
+                        self.write_data.get('data', b'').encode('utf-8')
+                    )
+                else:
+                    # Default to text record
+                    record = ndef.TextRecord(str(self.write_data))
+            else:
+                # Fallback to simple text record
+                record = ndef.TextRecord(str(self.write_data))
+            
+            # Write the record
+            tag.ndef.records = [record]
+            
+            # Verify write
+            if tag.ndef.records:
+                if hasattr(record, 'text'):
+                    verify_data = tag.ndef.records[0].text
+                    expected_data = record.text
+                elif hasattr(record, 'uri'):
+                    verify_data = tag.ndef.records[0].uri
+                    expected_data = record.uri
+                else:
+                    verify_data = tag.ndef.records[0].data
+                    expected_data = record.data
+                
+                if verify_data != expected_data:
+                    raise Exception("Failed to verify written data")
+            
+            # Update tag info with the written record
+            record_info = self._parse_ndef_record(record)
+            record_info['id'] = 'written_record'
+            tag_info['records'].append(record_info)
+            
+            # Handle locking if requested
+            if hasattr(self, 'lock_after_write') and self.lock_after_write:
+                success, msg = self.lock_tag(tag, permanent=self.permanent_lock)
+                if success:
+                    tag_info['locked'] = True
+                    self.logger.info(f"Tag locked after write: {msg}")
+                else:
+                    self.logger.warning(f"Failed to lock tag after write: {msg}")
+            
+            self.tag_detected.emit(tag_info)
+            self.logger.info(f"Successfully wrote to tag: {tag_info['id']}")
+            
+        except Exception as e:
+            self.logger.error(f"Error writing to tag: {str(e)}", exc_info=True)
+            raise
+    
+    def format_tag(self, tag):
+        """Format the tag (if supported)."""
+        try:
+            if hasattr(tag, 'format'):
+                tag.format()
+                return True, "Tag formatted successfully"
+            return False, "Tag does not support formatting"
+        except Exception as e:
+            return False, f"Error formatting tag: {str(e)}"
+
+class NFCApp(QMainWindow):
+    """Main application window for NFC Reader/Writer."""
+    
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("NFC Reader/Writer")
+        self.setGeometry(100, 100, 1000, 700)
+        
+        # Set application icon
+        icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "logo.png")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QtGui.QIcon(icon_path))
+        
+        # Initialize logging
+        self._init_logging()
+        self.logger = logging.getLogger('NFCApp')
+        
+        # Initialize NFC thread
+        self.nfc_thread = NFCThread()
+        self.nfc_thread.tag_detected.connect(self.handle_tag_detected)
+        self.nfc_thread.error_occurred.connect(self.show_error)
+        self.nfc_thread.reader_status.connect(self.update_reader_status)
+        self.nfc_thread.tag_read_progress.connect(self.update_read_progress)
+        self.nfc_thread.tag_write_progress.connect(self.update_write_progress)
+        
+        # Set window title with version
+        self.setWindowTitle(f"NFC Reader/Writer")
+        
+        # Initialize UI
+        self.init_ui()
+        
+        # Initialize menu and toolbar
+        self.menu = AppMenu(self, self.nfc_thread)
+        self.toolbar = AppToolBar(self, self.nfc_thread)
+        self.addToolBar(Qt.TopToolBarArea, self.toolbar)
+        
+        # Initialize device panel
+        self.device_panel = DevicePanel()
+        self.device_dock = QDockWidget("USB Device", self)
+        self.device_dock.setWidget(self.device_panel)
+        self.addDockWidget(Qt.LeftDockWidgetArea, self.device_dock)
+        
+        # Connect signals
+        self.device_panel.device_connected.connect(self.on_device_connection_changed)
+        
+        # Status bar
+        self.statusBar().showMessage('Ready')
+        self.status_label = QLabel("Status: Ready")
+        self.statusBar().addPermanentWidget(self.status_label)
+        
+    def init_ui(self):
+        """Initialize the main UI components."""
+        # Create main widget and layout
+        self.main_widget = QWidget()
+        self.setCentralWidget(self.main_widget)
+        self.layout = QVBoxLayout(self.main_widget)
+        
+        # Create tag info group
+        tag_group = QGroupBox("Tag Information")
+        tag_layout = QFormLayout()
+        
+        # Tag type
+        self.tag_type_label = QLabel("Type: Not detected")
+        tag_layout.addRow("Type:", self.tag_type_label)
+        
+        # Tag UID
+        self.tag_uid_label = QLabel("UID: Not detected")
+        tag_layout.addRow("UID:", self.tag_uid_label)
+        
+        # Tag size
+        self.tag_size_label = QLabel("Size: 0 bytes")
+        tag_layout.addRow("Size:", self.tag_size_label)
+        
+        # Tag data display
+        self.tag_data_edit = QTextEdit()
+        self.tag_data_edit.setReadOnly(True)
+        self.tag_data_edit.setPlaceholderText("Tag data will appear here...")
+        tag_layout.addRow(self.tag_data_edit)
+        
+        tag_group.setLayout(tag_layout)
+        
+        # Create action buttons
+        button_layout = QHBoxLayout()
+        
+        self.read_button = QPushButton("Read Tag")
+        self.read_button.clicked.connect(self.start_reading)
+        button_layout.addWidget(self.read_button)
+        
+        self.write_button = QPushButton("Write to Tag")
+        self.write_button.clicked.connect(self.start_writing)
+        button_layout.addWidget(self.write_button)
+        
+        self.clear_button = QPushButton("Clear")
+        self.clear_button.clicked.connect(self.clear_log)
+        button_layout.addWidget(self.clear_button)
+        
+        # Add widgets to main layout
+        self.layout.addWidget(tag_group)
+        self.layout.addLayout(button_layout)
+        
+        # Set initial button states
+        self.read_button.setEnabled(True)
+        self.write_button.setEnabled(False)
+        
+    def _init_logging(self):
+        """Initialize application-wide logging."""
+        from script.logging_utils import setup_logging
+        self.log_file = setup_logging()
+        logging.info("NFC Reader/Writer application started")
+    
+    def log(self, message, level="INFO"):
+        """Log a message to the application's status bar and log file."""
+        if hasattr(self, 'logger'):
+            if level == "ERROR":
+                self.logger.error(message)
+            elif level == "WARNING":
+                self.logger.warning(message)
+        main_widget = QWidget()
+        self.setCentralWidget(main_widget)
+        layout = QVBoxLayout(main_widget)
+        
+        # Tag info group
+        tag_group = QGroupBox("Tag Information")
+        tag_layout = QVBoxLayout()
+        
+        # Tag ID and Type
+        info_layout = QHBoxLayout()
+        self.tag_id_label = QLabel("Tag ID: Not detected")
+        self.tag_type_label = QLabel("Type: -") 
+        info_layout.addWidget(self.tag_id_label)
+        info_layout.addStretch()
+        info_layout.addWidget(self.tag_type_label)
+        tag_layout.addLayout(info_layout)
+        
+        # Tag data display
+        self.tag_data_display = QTextEdit()
+        self.tag_data_display.setReadOnly(True)
+        self.tag_data_display.setStyleSheet("""
+            QTextEdit {
+                background-color: #f8f9fa;
+                border: 1px solid #dee2e6;
+                border-radius: 4px;
+                padding: 8px;
+                font-family: 'Consolas', monospace;
+            }
+        """)
+        tag_layout.addWidget(self.tag_data_display)
+        tag_group.setLayout(tag_layout)
+        
+        # Log group
+        log_group = QGroupBox("Activity Log")
+        log_layout = QVBoxLayout()
+        
+        self.log_display = QTextEdit()
+        self.log_display.setReadOnly(True)
+        log_layout.addWidget(self.log_display)
+        log_group.setLayout(log_layout)
+        
+        # Add groups to main layout
+        layout.addWidget(tag_group, 40)  # 40% of space
+        layout.addWidget(log_group, 60)  # 60% of space
+    
+    def handle_tag_detected(self, tag_info):
+        """Handle a detected NFC tag with enhanced NDEF and locking support."""
+        try:
+            # Store the current tag info for potential operations
+            self.current_tag_info = tag_info
+            
+            # Update tag info
+            tag_type = tag_info['type']
+            if 'ndef_capacity' in tag_info:
+                tag_type += f" (NDEF: {len(tag_info.get('records', []))}/{tag_info['ndef_capacity']} bytes)"
+            
+            self.tag_id_label.setText(f"Tag ID: {tag_info['id']}")
+            self.tag_type_label.setText(f"Type: {tag_type}")
+            
+            # Format tag data for display
+            tag_data = []
+            tag_data.append(f"<b>Tag ID:</b> {tag_info['id']}")
+            tag_data.append(f"<b>Type:</b> {tag_info['type']}")
+            
+            # Add NDEF information if available
+            if 'ndef_capacity' in tag_info:
+                tag_data.append(f"<b>NDEF Capacity:</b> {tag_info['ndef_capacity']} bytes")
+                tag_data.append(f"<b>NDEF Writeable:</b> {'Yes' if tag_info.get('ndef_writeable', False) else 'No'}")
+            
+            tag_data.append(f"<b>Writable:</b> {'Yes' if tag_info['writable'] else 'No'}")
+            tag_data.append(f"<b>Formatted:</b> {'Yes' if tag_info['formatted'] else 'No'}")
+            
+            # Add locking information
+            if tag_info.get('lockable', False):
+                lock_status = 'Locked' if tag_info.get('locked', False) else 'Unlocked'
+                tag_data.append(f"<b>Lock Status:</b> {lock_status}")
+            
+            if 'memory_capacity' in tag_info:
+                tag_data.append(f"<b>Memory:</b> {tag_info['memory_capacity']} bytes")
+            
+            # Display NDEF records if available
+            if tag_info.get('records'):
+                tag_data.append("\n<b>NDEF Records:</b>")
+                for i, record in enumerate(tag_info['records'], 1):
+                    record_type = record.get('type', 'unknown')
+                    record_name = record.get('name', f'Record {i}')
+                    
+                    tag_data.append(f"\n  {i}. <b>{record_name}</b> ({record_type})")
+                    
+                    # Format record data based on type
+                    if record_type == 'text':
+                        tag_data.append(f"     Text: {record.get('data', '')}")
+                        if 'language' in record:
+                            tag_data.append(f"     Language: {record['language']}")
+                    elif record_type == 'uri':
+                        tag_data.append(f"     URI: {record.get('uri', '')}")
+                    elif record_type == 'mime':
+                        tag_data.append(f"     MIME Type: {record.get('mime_type', '')}")
+                        tag_data.append(f"     Data: {record.get('data', '')}")
+                    elif record_type == 'smart-poster':
+                        tag_data.append(f"     Title: {record.get('title', '')}")
+                        tag_data.append(f"     URI: {record.get('uri', '')}")
+                        if 'action' in record:
+                            tag_data.append(f"     Action: {record['action']}")
+                    else:
+                        tag_data.append(f"     Data: {record.get('data', '')}")
+                    
+                    if 'size' in record:
+                        tag_data.append(f"     Size: {record['size']} bytes")
+            
+            self.tag_data_display.setHtml("\n".join(tag_data))
+            
+            # Update UI based on tag capabilities
+            self.update_ui_for_tag(tag_info)
+            
+            # Log the operation
+            self.log(f"Tag detected: {tag_info['type']} ({tag_info['id']})")
+            
+        except Exception as e:
+            self.logger.error(f"Error handling tag: {str(e)}", exc_info=True)
+            self.show_error("ERROR", f"Failed to process tag: {str(e)}")
+    
+    def update_ui_for_tag(self, tag_info):
+        """Update UI elements based on the current tag's capabilities."""
+        # Enable/disable write button based on tag state
+        can_write = tag_info.get('writable', False) and not tag_info.get('locked', False)
+        self.toolbar.set_write_enabled(can_write)
+        
+        # Update lock button state
+        if tag_info.get('lockable', False):
+            if tag_info.get('locked', False):
+                self.toolbar.set_lock_button_state('locked')
+            else:
+                self.toolbar.set_lock_button_state('unlocked')
+        else:
+            self.toolbar.set_lock_button_state('unsupported')
+        
+    # Menu-related methods have been moved to script/menu.py
+    
+    def show_error(self, level, message):
+        """Show an error message in the UI and log it."""
+        if level == "ERROR":
+            QMessageBox.critical(self, "Error", message)
+        elif level == "WARNING":
+            QMessageBox.warning(self, "Warning", message)
+        else:
+            QMessageBox.information(self, "Information", message)
+            
+        # Update status bar
+        self.statusBar().showMessage(f"{level}: {message}", 5000)  # Show for 5 seconds
+        self.log(message, level)
+    
+    def start_reading(self):
+        self.nfc_thread.read_mode = True
+        self.update_log("Ready to read NFC tags...")
+    
+    def start_writing(self):
+        text = self.text_input.text().strip()
+        if not text:
+            QMessageBox.warning(self, "Error", "Please enter some text to write to the tag.")
+            return
+            
+        self.nfc_thread.read_mode = False
+        self.nfc_thread.write_data = text
+        self.statusBar().showMessage("Ready to write to tag...", 3000)
+        self.log(f"Ready to write to NFC tag: {text[:50]}..." if len(text) > 50 else text)
+    
+    def show_statistics(self):
+        """Show the statistics dialog."""
+        dialog = StatisticsDialog(stats_manager, self)
+        dialog.exec()
+        
+    def update_tag_list(self, filter_text: str = None):
+        """Update the tag list with recent tags from the database."""
+        try:
+            # Show loading indicator
+            if self.progress_dialog:
+                self.progress_dialog.set_status("Loading tag list...")
+                self.progress_dialog.progress_bar.setRange(0, 0)  # Indeterminate
+            
+            # Get all tags (or filtered tags) in a separate thread
+            def load_tags():
+                try:
+                    if filter_text:
+                        tags = tag_db.search_tags(filter_text)
+                    else:
+                        tags = tag_db.get_all_tags()
+                    
+                    # Update UI in the main thread
+                    self.update_tag_list_ui.emit(tags)
+                    
+                except Exception as e:
+                    error_msg = f"Error loading tags: {str(e)}"
+                    logger.error(error_msg, exc_info=True)
+                    self.log_signal.emit(error_msg, "ERROR")
+                finally:
+                    # Close progress dialog if open
+                    if self.progress_dialog:
+                        self.progress_dialog.close()
+                        self.progress_dialog = None
+            
+            # Use QThreadPool for background loading
+            from PySide6.QtCore import QRunnable, QThreadPool
+            
+            class LoadTagsTask(QRunnable):
+                def __init__(self, func):
+                    super().__init__()
+                    self.func = func
+                
+                def run(self):
+                    self.func()
+            
+            QThreadPool.globalInstance().start(LoadTagsTask(load_tags))
+            
+        except Exception as e:
+            error_msg = f"Error updating tag list: {str(e)}"
+            self.log(error_msg, level="ERROR")
+            logger.error(error_msg, exc_info=True)
+            
+            # Close progress dialog if open
+            if self.progress_dialog:
+                self.progress_dialog.close()
+                self.progress_dialog = None
+    
+    def update_tag_list_ui(self, tags):
+        """Update the tag list UI with the provided tags."""
+        try:
+            # Clear the table
+            self.tag_table.setRowCount(len(tags))
+            
+            # Add tags to the table
+            for row, tag in enumerate(tags):
+                # Tag ID (shortened)
+                tag_id = tag.tag_id[:12] + '...' if len(tag.tag_id) > 12 else tag.tag_id
+                self.tag_table.setItem(row, 0, QTableWidgetItem(tag_id))
+                self.tag_table.item(row, 0).setData(Qt.UserRole, tag.tag_id)  # Store full ID
+                
+                # Tag type
+                self.tag_table.setItem(row, 1, QTableWidgetItem(tag.tag_type or 'Unknown'))
+                
+                # Last updated
+                try:
+                    date = datetime.fromisoformat(tag.updated_at)
+                    date_str = date.strftime("%Y-%m-%d %H:%M")
+                except (ValueError, TypeError):
+                    date_str = str(tag.updated_at)
+                self.tag_table.setItem(row, 2, QTableWidgetItem(date_str))
+            
+            # Resize columns to contents
+            self.tag_table.resizeColumnsToContents()
+            
+        except Exception as e:
+            error_msg = f"Error updating tag list UI: {str(e)}"
+            self.log(error_msg, level="ERROR")
+            logger.error(error_msg, exc_info=True)
+    
+    def filter_tags(self):
+        """Filter the tag list based on search text."""
+        filter_text = self.tag_search.text().strip()
+        self.update_tag_list(filter_text)
+    
+    def on_tag_double_clicked(self, item):
+        """Handle double-click on a tag in the list."""
+        row = item.row()
+        tag_id = self.tag_table.item(row, 0).data(Qt.UserRole)
+        tag = tag_db.get_tag(tag_id)
+        
+        if tag:
+            self.text_input.setText(tag.data)
+            self.log(f"Loaded tag {tag_id[:8]}...")
+    
+    def view_tag_history(self):
+        """Show the tag history dialog for the selected tag."""
+        selected_items = self.tag_table.selectedItems()
+        if not selected_items:
+            QMessageBox.information(self, "No Tag Selected", "Please select a tag to view its history.")
+            return
+        
+        row = selected_items[0].row()
+        tag_id = self.tag_table.item(row, 0).data(Qt.UserRole)
+        
+        dialog = TagHistoryDialog(tag_id, self)
+        dialog.exec()
+    
+    def manage_tags(self):
+        """Open the tag management dialog."""
+        # For now, just show a message
+        QMessageBox.information(
+            self, 
+            "Tag Management", 
+            "Tag management features will be implemented in a future version."
+        )
+    
+    def toggle_tag_list_visibility(self):
+        """Toggle the visibility of the tag list dock widget."""
+        self.tag_list_dock.setVisible(self.toggle_tag_list_action.isChecked())
+    
+    def _generate_tag_id(self, data: str) -> str:
+        """Generate a unique ID for a tag based on its content."""
+        import hashlib
+        return hashlib.sha256(data.encode('utf-8')).hexdigest()
+    
+    def show_settings(self):
+        """Show the settings dialog."""
+        dialog = SettingsDialog(self)
+        dialog.settings_saved.connect(self.apply_settings)
+        dialog.exec()
+    
+    def apply_settings(self, settings):
+        """Apply settings from the settings dialog."""
+        # Apply interface settings
+        if 'interface' in settings:
+            # Apply theme if changed
+            if 'theme' in settings['interface']:
+                self.apply_theme(settings['interface']['theme'])
+            
+            # Apply font size
+            if 'font_size' in settings['interface']:
+                font = self.font()
+                font.setPointSize(settings['interface']['font_size'])
+                self.setFont(font)
+            
+            # Toggle toolbar and status bar visibility
+            if hasattr(self, 'toolbar') and 'show_toolbar' in settings['interface']:
+                self.toolbar.setVisible(settings['interface']['show_toolbar'])
+            
+            if hasattr(self, 'statusBar') and 'show_statusbar' in settings['interface']:
+                self.statusBar().setVisible(settings['interface']['show_statusbar'])
+        
+        # Apply editor settings if available
+        if hasattr(self, 'text_editor') and 'editor' in settings:
+            editor = self.text_editor
+            editor_settings = settings['editor']
+            
+            if 'word_wrap' in editor_settings:
+                editor.setLineWrapMode(editor.WidgetWidth if editor_settings['word_wrap'] else editor.NoWrap)
+            
+            if 'line_numbers' in editor_settings:
+                # Assuming you have a line number area widget
+                if hasattr(self, 'line_number_area'):
+                    self.line_number_area.setVisible(editor_settings['line_numbers'])
+            
+            if 'highlight_current_line' in editor_settings:
+                editor.highlightCurrentLine(editor_settings['highlight_current_line'])
+            
+            if 'tab_width' in editor_settings:
+                # Set tab stop width (multiply by font metrics for better accuracy)
+                metrics = editor.fontMetrics()
+                editor.setTabStopDistance(metrics.horizontalAdvance(' ') * editor_settings['tab_width'])
+        
+        # Apply logging settings
+        if 'logging' in settings:
+            import logging
+            from script.logging_utils import setup_logging, DailyRotatingFileHandler
+            
+            # Get log level from settings or default to INFO
+            log_level = settings['logging'].get('level', 'INFO').upper()
+            logger = logging.getLogger()
+            logger.setLevel(getattr(logging, log_level, logging.INFO))
+            
+            # Clear existing file handlers to avoid duplicates
+            for handler in logger.handlers[:]:
+                if isinstance(handler, (logging.FileHandler, DailyRotatingFileHandler)):
+                    logger.removeHandler(handler)
+            
+            # Configure file logging if enabled
+            if settings['logging'].get('to_file', True):
+                log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
+                os.makedirs(log_dir, exist_ok=True)
+                
+                # Use our custom daily rotating file handler
+                file_handler = DailyRotatingFileHandler(
+                    log_dir=log_dir,
+                    base_filename='nfc_reader',
+                    encoding='utf-8'
+                )
+                file_handler.setFormatter(logging.Formatter(
+                    '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S'
+                ))
+                logger.addHandler(file_handler)
+        
+        self.log("Settings applied successfully")
+    
+    def apply_theme(self, theme_name):
+        """Apply the selected theme to the application."""
+        # This is a basic implementation. You might want to use a stylesheet or a proper theming system.
+        if theme_name == "Dark":
+            self.setStyleSheet("""
+                QMainWindow, QDialog {
+                    background-color: #2d2d2d;
+                    color: #e0e0e0;
+                }
+                QTextEdit, QLineEdit, QComboBox, QSpinBox, QListWidget, QTableWidget {
+                    background-color: #3d3d3d;
+                    color: #e0e0e0;
+                    border: 1px solid #555;
+                }
+                QMenuBar, QToolBar {
+                    background-color: #3d3d3d;
+                    color: #e0e0e0;
+                }
+                QMenuBar::item:selected, QToolBar::item:selected {
+                    background-color: #555;
+                }
+            """)
+        elif theme_name == "Light":
+            self.setStyleSheet("""
+                QMainWindow, QDialog {
+                    background-color: #f0f0f0;
+                    color: #000000;
+                }
+                QTextEdit, QLineEdit, QComboBox, QSpinBox, QListWidget, QTableWidget {
+                    background-color: #ffffff;
+                    color: #000000;
+                    border: 1px solid #ccc;
+                }
+            """)
+        else:  # System or default
+            self.setStyleSheet("")  # Reset to system style
+    
+    def clear_log(self):
+        """Clear the log display."""
+        self.log_display.clear()
+    
+    def apply_settings(self, settings):
+        """Apply settings from the settings dialog.
+        
+        Args:
+            settings (dict): Dictionary containing all settings
+        """
+        try:
+            # Apply interface settings
+            if 'interface' in settings:
+                # Apply theme if changed
+                if 'theme' in settings['interface']:
+                    self.apply_theme(settings['interface']['theme'])
+                
+                # Apply font size
+                if 'font_size' in settings['interface']:
+                    font = self.font()
+                    font.setPointSize(settings['interface']['font_size'])
+                    self.setFont(font)
+                
+                # Toggle toolbar and status bar visibility
+                if hasattr(self, 'toolbar'):
+                    self.toolbar.setVisible(settings['interface'].get('show_toolbar', True))
+                
+                if hasattr(self, 'statusBar'):
+                    self.statusBar().setVisible(settings['interface'].get('show_statusbar', True))
+            
+            # Apply logging settings
+            if 'logging' in settings:
+                log_level = settings['logging'].get('level', 'INFO').upper()
+                logging.getLogger().setLevel(getattr(logging, log_level, logging.INFO))
+                
+                # Configure file logging if enabled
+                if settings['logging'].get('to_file', False):
+                    log_file = settings['logging'].get('file_path', 'nfc_reader.log')
+                    file_handler = logging.FileHandler(log_file)
+                    file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+                    logging.getLogger().addHandler(file_handler)
+            
+            # Apply NFC settings
+            if 'nfc' in settings and hasattr(self, 'nfc_thread'):
+                # Update NFC reader timeout
+                if 'reader_timeout' in settings['nfc']:
+                    self.nfc_thread.reader_timeout = settings['nfc']['reader_timeout']
+                
+                # Update auto-connect setting
+                if 'auto_connect' in settings['nfc'] and hasattr(self, 'device_panel'):
+                    self.device_panel.auto_connect = settings['nfc']['auto_connect']
+            
+            self.log("Settings applied successfully")
+            
+        except Exception as e:
+            self.log(f"Error applying settings: {str(e)}", level="ERROR")
+            QMessageBox.critical(self, "Settings Error", f"Failed to apply settings: {str(e)}")
+    
+    def apply_theme(self, theme_name):
+        """Apply the selected theme to the application."""
+        try:
+            if theme_name == "Dark":
+                self.setStyleSheet("""
+                    QMainWindow, QDialog, QWidget {
+                        background-color: #2d2d2d;
+                        color: #e0e0e0;
+                    }
+                    QTextEdit, QLineEdit, QComboBox, QSpinBox, QListWidget, QTableWidget {
+                        background-color: #3d3d3d;
+                        color: #e0e0e0;
+                        border: 1px solid #555;
+                    }
+                    QMenuBar, QToolBar {
+                        background-color: #3d3d3d;
+                        color: #e0e0e0;
+                    }
+                    QMenuBar::item:selected, QToolBar::item:selected {
+                        background-color: #555;
+                    }
+                """)
+            elif theme_name == "Light":
+                self.setStyleSheet("""
+                    QMainWindow, QDialog, QWidget {
+                        background-color: #f0f0f0;
+                        color: #000000;
+                    }
+                    QTextEdit, QLineEdit, QComboBox, QSpinBox, QListWidget, QTableWidget {
+                        background-color: #ffffff;
+                        color: #000000;
+                        border: 1px solid #ccc;
+                    }
+                """)
+            else:  # System or default
+                self.setStyleSheet("")  # Reset to system style
+                
+        except Exception as e:
+            self.log(f"Error applying theme: {str(e)}", level="ERROR")
+    
+    def closeEvent(self, event):
+        """Handle application close event."""
+        self.log("Application shutting down...")
+        self.nfc_thread.stop()
+        self.device_panel.disconnect_device()
+        logging.shutdown()
+        event.accept()
+    
+    def update_reader_status(self, status):
+        """Update the status bar with reader connection status."""
+        if status == "connected":
+            self.statusBar().showMessage("NFC reader connected", 3000)
+            self.status_label.setText("Status: Reader connected")
+            self.log("NFC reader connected")
+        else:
+            self.statusBar().showMessage("NFC reader disconnected", 3000)
+            self.status_label.setText("Status: Reader disconnected")
+            self.log("NFC reader disconnected", "WARNING")
+    
+    def on_device_connection_changed(self, connected):
+        """Handle device connection status changes."""
+        if connected:
+            self.statusBar().showMessage("Device connected", 3000)
+            self.status_label.setText("Status: Device connected")
+            self.log("USB device connected")
+            
+            # Start NFC thread if not already running
+            if not self.nfc_thread.isRunning():
+                self.nfc_thread.start()
+        else:
+            self.statusBar().showMessage("Device disconnected", 3000)
+            self.status_label.setText("Status: Device disconnected")
+            self.log("USB device disconnected", "WARNING")
+            
+            # Stop NFC operations but keep the thread running
+            if hasattr(self.nfc_thread, 'clf') and self.nfc_thread.clf:
+                self.nfc_thread.clf.close()
+    
+    def start_reading(self):
+        """Start reading NFC tags."""
+        self.nfc_thread.read_mode = True
+        self.nfc_thread.write_data = None
+        self.statusBar().showMessage("Ready to read tags...", 3000)
+        self.log("Ready to read NFC tags")
+    
+    def start_writing(self, text):
+        """Prepare to write to NFC tags."""
+        self.nfc_thread.write_data = text
+        self.nfc_thread.read_mode = False
+        self.statusBar().showMessage("Ready to write - place a writable tag near the reader")
+        
+    def update_read_progress(self, current: int, total: int) -> None:
+        """Update the read progress in the status bar.
+        
+        Args:
+            current: Current number of bytes read
+            total: Total number of bytes to read
+        """
+        if total > 0:
+            percent = (current / total) * 100
+            self.statusBar().showMessage(f"Reading: {current}/{total} bytes ({percent:.1f}%)")
+            
+    def update_write_progress(self, current: int, total: int) -> None:
+        """Update the write progress in the status bar.
+        
+        Args:
+            current: Current number of bytes written
+            total: Total number of bytes to write
+        """
+        if total > 0:
+            percent = (current / total) * 100
+            self.statusBar().showMessage(f"Writing: {current}/{total} bytes ({percent:.1f}%)")
+            
+    def start_writing(self, text):
+        """Prepare to write to NFC tags."""
+        if not text.strip():
+            self.show_error("WARNING", "No text to write")
+            return
+            
+        self.nfc_thread.read_mode = False
+        self.nfc_thread.write_data = text
+        self.statusBar().showMessage("Ready to write to tags...", 3000)
+        self.log(f"Ready to write to NFC tags: {text[:50]}..." if len(text) > 50 else text)
+
+def main():
+    # Set application metadata
+    app = QApplication(sys.argv)
+    app.setApplicationName("NFC Reader/Writer")
+    app.setApplicationVersion(__version__)
+    app.setOrganizationName("Nsfr750")
+    app.setOrganizationDomain("github.com/Nsfr750")
+    
+    # Enable high DPI scaling
+    app.setAttribute(Qt.AA_EnableHighDpiScaling, True)
+    app.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
+    
+    # Create and show main window
+    window = NFCApp()
+    window.show()
+    
+    # Log application start
+    window.log(f"{APP_NAME} v{__version__} started")
+    window.log(f"Copyright {AUTHOR} - {LICENSE}")
+    
+    # Start the NFC reader thread
+    window.nfc_thread.start()
+    
+    # Set up application style and theme
+    app.setStyle('Fusion')
+    
+    sys.exit(app.exec())
+
+if __name__ == "__main__":
+    main()
