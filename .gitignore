@@ -181,3 +181,4 @@ cython_debug/
 .cursorindexingignore
 TXT.md
 version.txt
+py-build.py

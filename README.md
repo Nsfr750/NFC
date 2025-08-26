@@ -114,28 +114,6 @@ The documentation will be available in the `_build/html` directory of each langu
    python main.py
    ```
 
-## 🛠️ Building from Source
-
-To build a standalone executable:
-
-1. Install PyInstaller:
-
-   ```bash
-   pip install pyinstaller
-   ```
-
-2. Build the application:
-
-   ```bash
-   python ./compiler/pyinstaller_build_win.py
-   ```
-   or
-   ```bash
-   python ./compiler/pyinstaller_build_linux.py
-   ```
-
-3. The executable will be available in the `dist/windows` or `dist/linux` directory.
-
 ## 🚀 Usage
 
 ### Basic Operations

@@ -3,7 +3,6 @@
 ## High Priority
 
 - [ ] Add support for MIFARE Classic 1K/4K authentication
-- [ ] Implement batch processing for multiple tags
 - [ ] Add password protection for sensitive operations
 - [ ] Improve error messages for common NFC reader issues
 - [ ] Add support for NFC Forum Tag Types 1-5
@@ -11,18 +10,8 @@
 ## Medium Priority
 
 - [ ] Implement tag cloning functionality
-- [ ] Add support for custom data formats
 - [ ] Create a tag database backup/restore feature
 - [ ] Add support for contactless smart cards
-- [ ] Implement tag read/write scheduling
-
-## Low Priority
-
-- [ ] Add support for NFC peer-to-peer mode
-- [ ] Implement a tag simulation mode for testing
-- [ ] Add support for custom tag layouts
-- [ ] Create a plugin system for extended functionality
-- [ ] Add support for additional character encodings
 
 ## Documentation
 

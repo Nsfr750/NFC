@@ -81,18 +81,50 @@ class HelpDialog(QDialog):
         help_display.setHtml(help_text)
         help_display.setStyleSheet("""
             QTextEdit {
-                background-color: white;
-                border: 1px solid #d0d0d0;
+                background-color: #2d2d2d;
+                color: #e0e0e0;
+                border: 1px solid #3e3e3e;
                 border-radius: 4px;
-                padding: 10px;
-                font-size: 12px;
+                padding: 15px;
+                font-size: 13px;
+                font-family: 'Segoe UI', Arial, sans-serif;
+                line-height: 1.5;
+            }
+            h1, h2, h3, h4, h5, h6 {
+                color: #4a90e2;
+                margin-top: 1em;
+                margin-bottom: 0.5em;
+            }
+            h2 {
+                color: #6ba2ff;
+                border-bottom: 1px solid #3e3e3e;
+                padding-bottom: 5px;
+            }
+            h3 {
+                color: #8cb4ff;
             }
             a {
-                color: #0066cc;
+                color: #4a90e2;
                 text-decoration: none;
+                font-weight: 500;
             }
             a:hover {
+                color: #6ba2ff;
                 text-decoration: underline;
+            }
+            ul, ol {
+                margin: 0.5em 0;
+                padding-left: 2em;
+            }
+            li {
+                margin: 0.3em 0;
+            }
+            p {
+                margin: 0.7em 0;
+            }
+            b, strong {
+                color: #e0e0e0;
+                font-weight: 600;
             }
         """)
         
