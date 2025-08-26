@@ -24,20 +24,25 @@ def convert_png_to_ico(png_path, ico_path):
 def get_version():
     """Get version information from script/version.py"""
     try:
-        sys.path.insert(0, 'script')
-        from version import VERSION, VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH, PRERELEASE, BUILD
+        # Add script directory to path
+        script_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'script')
+        sys.path.insert(0, script_dir)
         
-        version_str = f"{VERSION_MAJOR}.{VERSION_MINOR}.{VERSION_PATCH}"
+        # Import version information
+        from version import MAJOR, MINOR, PATCH, PRERELEASE, BUILD, get_version_string
+        
+        version_str = f"{MAJOR}.{MINOR}.{PATCH}"
         if PRERELEASE:
             version_str += f"-{PRERELEASE}"
         if BUILD:
             version_str += f"+{BUILD}"
             
-        display_version = VERSION
+        display_version = get_version_string()
+        print(f"Building version: {version_str} (using build version: {display_version})")
         return version_str, display_version
     except Exception as e:
         print(f"Warning: Could not read version: {e}")
-        return "1.0.0", "1.0.0"
+        return "1.0.1", "1.0.1"
 
 def create_spec_file(version_str, display_version, icon_path='NONE'):
     """Create PyInstaller spec file"""
@@ -168,23 +173,30 @@ VSVersionInfo(
              version_str=version_str, 
              display_version=display_version)
 
-    with open('version.txt', 'w', encoding='utf-8') as f:
+    with open('compiler/version.txt', 'w', encoding='utf-8') as f:
         f.write(version_info)
     
-    with open('nfc_reader.spec', 'w', encoding='utf-8') as f:
+    with open('compiler/nfc_reader.spec', 'w', encoding='utf-8') as f:
         f.write(spec_content)
 
 def main():
     print("Building NFC Reader/Writer with PyInstaller...")
     
+    # Get the project root directory
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    os.chdir(project_root)
+    
     def remove_readonly(func, path, _):
         """Remove readonly attribute and retry the operation"""
-        os.chmod(path, stat.S_IWRITE)
-        func(path)
+        try:
+            os.chmod(path, stat.S_IWRITE)
+            func(path)
+        except Exception as e:
+            print(f"Warning: Could not remove {path}: {e}")
 
     # Clean previous builds
-    build_dir = 'build'
-    dist_dir = 'dist/windows'
+    build_dir = os.path.join(project_root, 'build')
+    dist_dir = os.path.join(project_root, 'dist', 'windows')
     
     def remove_readonly_files(func, path, _):
         """Remove readonly attribute and retry the operation"""
@@ -194,10 +206,14 @@ def main():
         except Exception as e:
             print(f"Warning: Could not remove {path}: {e}")
     
-    # Clean build directory
-    if os.path.exists(build_dir):
-        print("Cleaning build directory...")
-        shutil.rmtree(build_dir, onerror=remove_readonly_files, ignore_errors=True)
+    # Clean build and dist directories
+    for directory in [build_dir, dist_dir]:
+        if os.path.exists(directory):
+            print(f"Cleaning {directory} directory...")
+            shutil.rmtree(directory, onerror=remove_readonly, ignore_errors=True)
+    
+    # Create dist directory if it doesn't exist
+    os.makedirs(dist_dir, exist_ok=True)
     
     # Clean dist directory
     if os.path.exists(dist_dir):
@@ -209,10 +225,9 @@ def main():
             print(f"Warning: Could not fully clean dist directory: {e}")
             # If we can't remove the directory, at least try to clean its contents
             for item in os.listdir(dist_dir):
-                item_path = os.path.join(dist_dir, item)
                 try:
+                    item_path = os.path.join(dist_dir, item)
                     if os.path.isfile(item_path):
-                        os.chmod(item_path, stat.S_IWRITE)
                         os.unlink(item_path)
                     elif os.path.isdir(item_path):
                         shutil.rmtree(item_path, onerror=remove_readonly_files, ignore_errors=True)
@@ -223,71 +238,65 @@ def main():
     version_str, display_version = get_version()
     print(f"Building version: {display_version} (using build version: {version_str})")
     
-    # Handle icon - copy to a known location first
-    icon_path = 'NONE'
-    temp_icon = None
-    
-    if os.path.exists('assets/logo.png'):
+    # Create a temporary directory for build files
+    with tempfile.TemporaryDirectory() as temp_dir:
         try:
-            # Create a temporary directory in the build folder
-            temp_dir = os.path.join('build', 'temp_icon')
-            os.makedirs(temp_dir, exist_ok=True)
+            # Copy necessary files to temp directory
+            for item in ['main.py', 'assets', 'config', 'data', 'script']:
+                src = os.path.join(project_root, item)
+                if os.path.exists(src):
+                    if os.path.isdir(src):
+                        shutil.copytree(src, os.path.join(temp_dir, item), 
+                                     dirs_exist_ok=True)
+                    else:
+                        shutil.copy2(src, temp_dir)
             
-            # Define the ICO file path
-            temp_icon = os.path.abspath(os.path.join(temp_dir, 'app_icon.ico'))
+            # Change to temp directory for build
+            os.chdir(temp_dir)
             
-            # Convert PNG to ICO
-            if convert_png_to_ico('assets/logo.png', temp_icon):
-                icon_path = temp_icon
-                print(f"Using icon: {icon_path}")
+            # Convert icon if available
+            icon_path = os.path.join('assets', 'logo.png')
+            ico_path = os.path.join(temp_dir, 'app.ico')
+            
+            if os.path.exists(icon_path):
+                if convert_png_to_ico(icon_path, ico_path):
+                    print(f"Created icon: {ico_path}")
+                    icon_path = ico_path
+                else:
+                    print("Warning: Could not convert PNG to ICO, proceeding without icon")
+                    icon_path = 'NONE'
             else:
-                print("Warning: Could not convert PNG to ICO, proceeding without icon")
-        except Exception as e:
-            print(f"Warning: Error processing icon: {e}")
-    
-    # Create spec file
-    print("Creating PyInstaller spec file...")
-    create_spec_file(version_str, display_version, icon_path=icon_path)
-    
-    # Don't clean up the icon file yet - it's needed during the build
-    # The file will be cleaned up on the next build
-    
-    # Run PyInstaller
-    print("Running PyInstaller...")
-    try:
-        subprocess.check_call(['pyinstaller', '--clean', 'nfc_reader.spec'])
-        
-        # Copy additional files to the dist directory
-        dist_dir = Path('dist') / f'NFC_Reader_App-{version_str}'
-        
-        # Create necessary directories
-        (dist_dir / 'logs').mkdir(exist_ok=True)
-        (dist_dir / 'data').mkdir(exist_ok=True)
-        
-        # Copy README and LICENSE
-        for file in ['README.md', 'LICENSE', 'CHANGELOG.md']:
-            if os.path.exists(file):
-                shutil.copy2(file, dist_dir)
-                
-        print("\nBuild completed successfully!")
-        print(f"The application is available in: {os.path.abspath(dist_dir)}")
-        
-    except subprocess.CalledProcessError as e:
-        print(f"\nError during PyInstaller execution: {e}")
-        sys.exit(1)
-        
-        # Clean up temporary files
-        if os.path.exists('version.txt'):
-            os.remove('version.txt')
-        if os.path.exists('nfc_reader.spec'):
-            os.remove('nfc_reader.spec')
+                print("Warning: Icon file not found, proceeding without icon")
+                icon_path = 'NONE'
             
-    except subprocess.CalledProcessError as e:
-        print(f"\nBuild failed with exit code {e.returncode}")
-        sys.exit(1)
-    except Exception as e:
-        print(f"\nError during build: {e}")
-        sys.exit(1)
+            # Create spec file
+            create_spec_file(version_str, display_version, icon_path)
+            
+            # Run PyInstaller
+            print("Running PyInstaller...")
+            try:
+                subprocess.check_call(['pyinstaller', '--clean', 'nfc_reader.spec'])
+                
+                # Copy the built executable to the dist directory
+                built_exe = os.path.join(temp_dir, 'dist', f'NFC_Reader_App-{version_str}.exe')
+                if os.path.exists(built_exe):
+                    shutil.copy2(built_exe, os.path.join(dist_dir, os.path.basename(built_exe)))
+                    print(f"\n✅ Build successful! Executable created at: {os.path.join(dist_dir, os.path.basename(built_exe))}")
+                    return 0
+                else:
+                    print("\n❌ Build may have completed, but could not find the output executable.")
+                    return 1
+                    
+            except subprocess.CalledProcessError as e:
+                print(f"\n❌ Error during build: {e}")
+                return 1
+            except Exception as e:
+                print(f"\n❌ Unexpected error during build: {e}")
+                return 1
+                
+        except Exception as e:
+            print(f"\n❌ Error during build preparation: {e}")
+            return 1
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
