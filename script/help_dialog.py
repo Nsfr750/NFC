@@ -54,6 +54,40 @@ class HelpDialog(QDialog):
             <li>The application will write the data and verify the write</li>
         </ol>
         
+        <h3>Security Features</h3>
+        <p>The application includes password protection for sensitive operations to prevent unauthorized access to tag management features.</p>
+        
+        <h4>Setting Up Password Protection</h4>
+        <ol>
+            <li>Go to <b>Security > Require Password</b></li>
+            <li>Enter and confirm your new password</li>
+            <li>Click <b>OK</b> to enable password protection</li>
+        </ol>
+        
+        <h4>Changing Your Password</h4>
+        <ol>
+            <li>Go to <b>Security > Change Password</b></li>
+            <li>Enter your current password</li>
+            <li>Enter and confirm your new password</li>
+            <li>Click <b>OK</b> to update your password</li>
+        </ol>
+        
+        <h4>Password-Protected Features</h4>
+        <p>The following features require authentication when password protection is enabled:</p>
+        <ul>
+            <li>Tag Tools</li>
+            <li>Tag Database</li>
+            <li>Tag Cloner</li>
+        </ul>
+        
+        <h4>Security Best Practices</h4>
+        <ul>
+            <li>Use a strong, unique password</li>
+            <li>Don't share your password</li>
+            <li>Change your password regularly</li>
+            <li>Disable password protection if not needed</li>
+        </ul>
+        
         <h3>Keyboard Shortcuts</h3>
         <ul>
             <li><b>Ctrl+R</b>: Start reading tags</li>

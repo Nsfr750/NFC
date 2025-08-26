@@ -5,16 +5,52 @@ All notable changes to the NFC Reader/Writer application will be documented in t
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+
+## [1.1.0] - 2025-08-26
+
+### Added
+
+- **Type 1 (Topaz) Operations**: Added support for reading and writing Type 1 tags
+- **Type 2 (MIFARE Ultralight/NTAG) Operations**: Added support for reading and writing Type 2 tags
+- **Type 3 (FeliCa) Operations**: Added support for reading and writing Type 3 tags
+- **Type 4 (DESFire) Operations**: Added support for reading and writing Type 4 tags
+- **Type 5 (Vicinity/ISO 15693) Operations**: Added support for reading and writing Type 5 tags
+- **Type 5 (ISO 15693) Operations**: Enhanced support for ISO 15693 tags
+  - Added block-based read/write operations
+  - Implemented block locking functionality
+  - Added tag information retrieval
+  - Improved error handling and input validation
+- **Error Handling**: Added specific error messages for unsupported operations across all tag types
+- **Documentation**: Added comprehensive documentation of supported operations for each tag type in `docs/supported_operations.md`
+
+### Changed
+
+- **Documentation**: Updated documentation for new Type 2 operations
+
+### Fixed
+
+- **Type 2 (MIFARE Ultralight/NTAG) Operations**: Fixed bug in Type 2 tag detection
+- **Type 5 (ISO 15693) Operations**: Fixed block size validation in write operations
+
 ## [1.0.1] - 2025-08-26
 
 ### Added
 
+- **Security**: Added password protection for sensitive operations
+  - Secure password hashing with PBKDF2 and salt
+  - Password change functionality
+  - Toggle for enabling/disabling password protection
+  - Protected operations include Tag Tools, Tag Database, and Tag Cloner
+  - New Security menu for managing authentication settings
+  
 - **Documentation**: Comprehensive documentation in English and Italian
   - User Guide with detailed instructions
   - API Reference for developers
   - Troubleshooting Guide for common issues
   - FAQ section
   - Contributing Guidelines for open-source collaboration
+  - Updated help documentation for new security features
+  
 - **Documentation Build System**:
   - Sphinx-based documentation with sphinx_rtd_theme
   - Automated build scripts for both English and Italian versions

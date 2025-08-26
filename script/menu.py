@@ -4,11 +4,13 @@ from PySide6.QtCore import Slot, Qt
 import time
 
 from .help_dialog import HelpDialog
+from .auth import AuthManager, PasswordDialog
 
 class AppMenu:
     def __init__(self, parent, nfc_thread):
         self.parent = parent
         self.nfc_thread = nfc_thread
+        self.auth_manager = AuthManager()
         self.menubar = parent.menuBar()
         self.setup_menus()
     
@@ -18,6 +20,7 @@ class AppMenu:
         self.create_edit_menu()
         self.create_view_menu()
         self.create_tools_menu()
+        self.create_security_menu()
         self.create_help_menu()
         
     def create_view_menu(self):
@@ -61,6 +64,24 @@ class AppMenu:
         """Create the Tools menu with its actions."""
         tools_menu = self.menubar.addMenu("&Tools")
         
+        # Tag Tools action
+        tag_tools_action = QtGui.QAction("Tag &Tools...", self.parent)
+        tag_tools_action.triggered.connect(self.show_tag_tools)
+        tools_menu.addAction(tag_tools_action)
+        
+        # Tag Database action
+        tag_db_action = QtGui.QAction("Tag &Database...", self.parent)
+        tag_db_action.triggered.connect(self.show_tag_database)
+        tools_menu.addAction(tag_db_action)
+        
+        # Tag Cloner action
+        tag_cloner_action = QtGui.QAction("Tag &Cloner...", self.parent)
+        tag_cloner_action.triggered.connect(self.show_tag_cloner)
+        tools_menu.addAction(tag_cloner_action)
+        
+        # Add separator
+        tools_menu.addSeparator()
+        
         # Format tag action
         format_action = QtGui.QAction("&Format Tag", self.parent)
         format_action.triggered.connect(self.format_tag)
@@ -80,8 +101,23 @@ class AppMenu:
         # Settings action
         settings_action = QtGui.QAction("&Settings...", self.parent)
         settings_action.triggered.connect(self.show_settings)
-        settings_action.setShortcut("Ctrl+,")
+        settings_action.setShortcut("Ctrl+")
         tools_menu.addAction(settings_action)
+    
+    def create_security_menu(self):
+        """Create the Security menu with its actions."""
+        security_menu = self.menubar.addMenu("&Security")
+        
+        # Change Password action
+        change_pw_action = QtGui.QAction("Change &Password...", self.parent)
+        change_pw_action.triggered.connect(self.change_password)
+        security_menu.addAction(change_pw_action)
+        
+        # Require Password action
+        self.require_pw_action = QtGui.QAction("Require &Password", self.parent, checkable=True)
+        self.require_pw_action.setChecked(self.auth_manager.is_password_set())
+        self.require_pw_action.triggered.connect(self.toggle_password_protection)
+        security_menu.addAction(self.require_pw_action)
     
     def create_help_menu(self):
         """Create the Help menu with its actions."""
@@ -116,8 +152,119 @@ class AppMenu:
     @Slot()
     def show_help(self):
         """Show the help dialog."""
-        dialog = HelpDialog(self.parent)
-        dialog.exec_()
+        help_dialog = HelpDialog(self.parent)
+        help_dialog.exec()
+        
+    def require_authentication(self, action_name: str) -> bool:
+        """Check if authentication is required and verify password if needed.
+        
+        Args:
+            action_name: Name of the action being performed (for messages)
+            
+        Returns:
+            bool: True if authenticated or no auth needed, False if cancelled
+        """
+        if not self.auth_manager.is_password_set():
+            return True
+            
+        if PasswordDialog.verify_password(self.auth_manager, self.parent):
+            return True
+            
+        QMessageBox.information(
+            self.parent,
+            "Authentication Required",
+            f"You must be authenticated to {action_name}."
+        )
+        return False
+    
+    def change_password(self):
+        """Show the change password dialog."""
+        if PasswordDialog.set_password(self.auth_manager, self.parent):
+            self.require_pw_action.setChecked(self.auth_manager.is_password_set())
+            QMessageBox.information(
+                self.parent,
+                "Success",
+                "Password updated successfully."
+            )
+    
+    def toggle_password_protection(self):
+        """Toggle password protection on/off."""
+        if self.auth_manager.is_password_set():
+            # Verify current password before disabling
+            if PasswordDialog.verify_password(self.auth_manager, self.parent):
+                self.auth_manager.set_password("")  # Clear password
+                self.require_pw_action.setChecked(False)
+                QMessageBox.information(
+                    self.parent,
+                    "Password Protection Disabled",
+                    "Password protection has been disabled."
+                )
+            else:
+                self.require_pw_action.setChecked(True)  # Re-check if verification failed
+        else:
+            # Set a new password
+            if PasswordDialog.set_password(self.auth_manager, self.parent):
+                self.require_pw_action.setChecked(True)
+    
+    def show_tag_tools(self):
+        """Show the tag tools dialog."""
+        if not self.require_authentication("access tag tools"):
+            return
+            
+        try:
+            from .tag_tools_dialog import TagToolsDialog
+            from .nfc_operations import NfcOperations
+            from .tag_database import TagDatabase
+            
+            nfc_ops = NfcOperations()
+            db = TagDatabase()
+            dialog = TagToolsDialog(nfc_ops, db, self.parent)
+            dialog.exec()
+        except Exception as e:
+            QMessageBox.critical(
+                self.parent,
+                "Error",
+                f"Failed to open Tag Tools: {str(e)}"
+            )
+    
+    def show_tag_database(self):
+        """Show the tag database dialog."""
+        if not self.require_authentication("access tag database"):
+            return
+            
+        try:
+            from .tag_database import TagDatabase
+            from .tag_database_dialog import TagDatabaseDialog
+            
+            db = TagDatabase()
+            dialog = TagDatabaseDialog(db, self.parent)
+            dialog.exec()
+        except Exception as e:
+            QMessageBox.critical(
+                self.parent,
+                "Error",
+                f"Failed to open Tag Database: {str(e)}"
+            )
+    
+    def show_tag_cloner(self):
+        """Show the tag cloner dialog."""
+        if not self.require_authentication("use tag cloner"):
+            return
+            
+        from .nfc_operations import NfcOperations
+        from .tag_database import TagDatabase
+        
+        try:
+            nfc_ops = NfcOperations()
+            db = TagDatabase()
+            dialog = TagClonerDialog(nfc_ops, db, self.parent)  # Create this dialog if needed
+            dialog.exec()
+        except Exception as e:
+            QMessageBox.critical(
+                self.parent,
+                "Error",
+                f"Failed to open Tag Cloner: {str(e)}"
+            )
         
     def show_about(self):
         """Show the about dialog."""

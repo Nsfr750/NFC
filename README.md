@@ -11,6 +11,8 @@ A powerful PySide6-based application for reading from and writing to various typ
   - FeliCa (Sony)
   - ISO 14443 Type A/B cards
 
+- **Comprehensive Tag Support**: [View supported operations](docs/supported_operations.md) for all tag types
+
 - **NDEF Operations**:
   - Read and write NDEF records
   - Create and manage multiple NDEF records
@@ -30,6 +32,13 @@ A powerful PySide6-based application for reading from and writing to various typ
   - Detailed tag information panel
   - Log viewer with filtering options
   - Comprehensive documentation in English and Italian
+
+- **Security Features**:
+  - 🔒 Password protection for sensitive operations
+  - 🔑 Secure password hashing with PBKDF2
+  - 🔄 Password change functionality
+  - ⚙️ Toggle for enabling/disabling password protection
+  - 🔐 Protected operations include Tag Tools, Database, and Cloner
 
 - **Advanced Features**:
   - Tag emulation mode (experimental)

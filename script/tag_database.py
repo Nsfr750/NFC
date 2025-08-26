@@ -95,6 +95,79 @@ class TagDatabase:
     def _calculate_hash(self, data: str) -> str:
         """Calculate a hash for the tag data."""
         return hashlib.sha256(data.encode('utf-8')).hexdigest()
+        
+    def backup_database(self, backup_path: str) -> bool:
+        """Create a backup of the database to the specified path.
+        
+        Args:
+            backup_path: Path where to save the backup file
+            
+        Returns:
+            bool: True if backup was successful, False otherwise
+        """
+        import shutil
+        try:
+            # Ensure the directory exists
+            os.makedirs(os.path.dirname(os.path.abspath(backup_path)), exist_ok=True)
+            
+            # If the backup path is a directory, create a default filename
+            if os.path.isdir(backup_path):
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                backup_path = os.path.join(backup_path, f'tagdb_backup_{timestamp}.db')
+            
+            # Create a backup of the database
+            with self._get_connection() as source_conn:
+                # Use WAL mode to ensure we get a consistent backup
+                source_conn.execute('PRAGMA wal_checkpoint(TRUNCATE);')
+                
+            shutil.copy2(self.db_path, backup_path)
+            return True
+            
+        except Exception as e:
+            print(f"Error creating backup: {str(e)}")
+            return False
+    
+    def restore_database(self, backup_path: str) -> bool:
+        """Restore the database from a backup file.
+        
+        Args:
+            backup_path: Path to the backup file
+            
+        Returns:
+            bool: True if restore was successful, False otherwise
+        """
+        if not os.path.exists(backup_path):
+            print(f"Backup file not found: {backup_path}")
+            return False
+            
+        try:
+            # Close any existing connections
+            if hasattr(self, '_conn'):
+                self._conn.close()
+                
+            # Create a backup of the current database
+            backup_dir = os.path.dirname(self.db_path)
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            temp_backup = os.path.join(backup_dir, f'temp_backup_{timestamp}.db')
+            
+            if os.path.exists(self.db_path):
+                shutil.copy2(self.db_path, temp_backup)
+            
+            try:
+                # Replace the current database with the backup
+                shutil.copy2(backup_path, self.db_path)
+                return True
+                
+            except Exception as e:
+                # Restore the original database if something goes wrong
+                print(f"Error during restore: {str(e)}")
+                if os.path.exists(temp_backup):
+                    shutil.copy2(temp_backup, self.db_path)
+                return False
+                
+        except Exception as e:
+            print(f"Error during restore: {str(e)}")
+            return False
     
     def store_tag(self, tag_id: str, tag_type: str, data: str, 
                  metadata: Optional[Dict[str, Any]] = None) -> TagRecord:

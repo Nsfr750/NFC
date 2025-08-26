@@ -7,10 +7,10 @@ This module follows Semantic Versioning 2.0.0 (https://semver.org/).
 MAJOR = 1
 
 #: Minor version number (backwards-compatible new features)
-MINOR = 0
+MINOR = 1
 
 #: Patch version number (backwards-compatible bug fixes)
-PATCH = 1
+PATCH = 0
 
 #: Pre-release version identifier (e.g., 'alpha', 'beta', 'rc.1')
 #: Set to None for final releases

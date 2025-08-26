@@ -44,6 +44,7 @@ from script.progress_dialog import ProgressDialog
 from script.settings_dialog import SettingsDialog
 from script.menu import AppMenu
 from script.toolbar import AppToolBar
+from script.nfc_manager import NFCManager
 
 # Initialize database and statistics
 tag_db = TagDatabase()
@@ -104,15 +105,79 @@ class NFCThread(QThread):
         self.log_file = setup_logging()
         self.logger = logging.getLogger('NFCThread')
     
+    def stop(self):
+        """Stop the NFC thread and clean up resources."""
+        self.running = False
+        if hasattr(self, 'clf') and self.clf:
+            try:
+                self.clf.close()
+            except Exception as e:
+                logging.error(f"Error closing NFC reader: {str(e)}")
+        self.wait(2000)  # Wait up to 2 seconds for thread to finish
+        
+    def _get_reader_status(self):
+        """Check if NFC reader is properly connected."""
+        try:
+            import usb.core
+            import usb.util
+            
+            # Check for common NFC reader vendor/product IDs
+            NFC_READERS = {
+                (0x054c, 0x06c3): 'Sony RC-S380',  # ACR122U
+                (0x072f, 0x2200): 'ACS ACR122U',
+                (0x1a86, 0x55e4): 'ACS ACR1252U',
+                (0x04e6, 0x5591): 'Sony PaSoRi RC-S380',
+                (0x04cc, 0x2533): 'NXP PN533',
+            }
+            
+            # Check for connected USB devices
+            devices = usb.core.find(find_all=True)
+            found_readers = [
+                f"{name} (PID: 0x{pid:04x}, VID: 0x{vid:04x})"
+                for (vid, pid), name in NFC_READERS.items()
+                if usb.core.find(idVendor=vid, idProduct=pid) is not None
+            ]
+            
+            if not found_readers:
+                return (
+                    "No supported NFC reader detected.\n\n"
+                    "Common solutions:\n"
+                    "1. Ensure your NFC reader is properly connected\n"
+                    "2. Check if the device is recognized by your OS\n"
+                    "3. Install required drivers if needed\n"
+                    "4. Try a different USB port"
+                )
+            
+            return None
+            
+        except ImportError:
+            return "Could not check USB devices. PyUSB may not be installed."
+        except Exception as e:
+            return f"Error checking USB devices: {str(e)}"
+    
     def run(self):
         """Main thread loop for NFC operations."""
         self.running = True
         self.logger.info("NFC thread started")
         
         try:
+            # Check for common issues before initializing the reader
+            reader_status = self._get_reader_status()
+            if reader_status:
+                self.error_occurred.emit("NFC Reader Not Found", reader_status)
+                return
+                
             with nfc.ContactlessFrontend('usb') as self.clf:
                 if not self.clf:
-                    self.error_occurred.emit("ERROR", "NFC reader not found")
+                    self.error_occurred.emit(
+                        "NFC Reader Initialization Failed",
+                        "Failed to initialize the NFC reader.\n\n"
+                        "Possible causes:\n"
+                        "1. The reader is already in use by another application\n"
+                        "2. Insufficient permissions to access the device\n"
+                        "3. The reader is not properly connected\n"
+                        "4. Driver issues - try reconnecting the device"
+                    )
                     return
                     
                 self.reader_status.emit("connected")
@@ -162,13 +227,35 @@ class NFCThread(QThread):
     def on_connect(self, tag):
         """Handle tag connection and dispatch to appropriate handler."""
         try:
-            tag_info = {
-                'id': tag.identifier.hex(),
-                'type': self.SUPPORTED_TYPES.get(tag.type, tag.type),
-                'writable': tag.ndef is not None and tag.ndef.is_writeable,
-                'formatted': tag.ndef is not None,
-                'records': []
-            }
+            self.current_tag = tag
+            
+            # Check if tag is readable
+            if not tag or not hasattr(tag, 'ndef') or not hasattr(tag, 'type'):
+                self.error_occurred.emit(
+                    "Unsupported Tag",
+                    "The tag is not supported or may be damaged.\n\n"
+                    "Supported tag types include:\n"
+                    "- MIFARE Classic 1K/4K\n"
+                    "- NTAG203/210/213/215/216\n"
+                    "- MIFARE Ultralight\n"
+                    "- ISO 14443-4 (Type 4) tags"
+                )
+                return False
+                
+            tag_info = self._get_tag_info(tag)
+            
+            if not tag_info:
+                self.error_occurred.emit(
+                    "Unsupported Tag Type",
+                    f"Tag type '{tag.type}' is not supported.\n\n"
+                    "This application supports the following tag types:\n"
+                    "- MIFARE Classic (1K/4K)\n"
+                    "- NTAG (203/210/213/215/216)\n"
+                    "- MIFARE Ultralight\n"
+                    "- FeliCa\n"
+                    f"\nDetected tag type: {tag.type}"
+                )
+                return False
             
             if self.read_mode:
                 self.read_tag(tag, tag_info)
@@ -489,8 +576,11 @@ class NFCApp(QMainWindow):
         self._init_logging()
         self.logger = logging.getLogger('NFCApp')
         
-        # Initialize NFC thread
+        # Initialize NFC thread and manager
         self.nfc_thread = NFCThread()
+        self.nfc_manager = NFCManager(self.nfc_thread)
+        
+        # Connect signals
         self.nfc_thread.tag_detected.connect(self.handle_tag_detected)
         self.nfc_thread.error_occurred.connect(self.show_error)
         self.nfc_thread.reader_status.connect(self.update_reader_status)
@@ -636,6 +726,11 @@ class NFCApp(QMainWindow):
     
     def handle_tag_detected(self, tag_info):
         """Handle a detected NFC tag with enhanced NDEF and locking support."""
+        # Get extended tag info from NFC manager
+        tag_info.update(self.nfc_manager.get_tag_info())
+        
+        # Update UI based on tag capabilities
+        self.update_ui_for_tag(tag_info)
         try:
             # Store the current tag info for potential operations
             self.current_tag_info = tag_info
@@ -742,15 +837,66 @@ class NFCApp(QMainWindow):
         self.log(message, level)
     
     def start_reading(self):
+        """Start reading from the NFC tag with MIFARE authentication support."""
+        if not hasattr(self, 'nfc_manager') or not self.nfc_manager:
+            self.show_error("ERROR", "NFC manager not initialized")
+            return
+            
+        # Check if we have a current tag
+        if not hasattr(self, 'current_tag_info') or not self.current_tag_info:
+            self.show_error("WARNING", "No tag detected. Please place a tag near the reader.")
+            return
+            
+        # For MIFARE Classic tags, authenticate first
+        if (self.nfc_manager.nfc_ops.current_tag and 
+            self.nfc_manager.nfc_ops.current_tag['type'] in [
+                'MIFARE_CLASSIC_1K', 
+                'MIFARE_CLASSIC_4K'
+            ]):
+            # Try to authenticate with default key (FF FF FF FF FF FF)
+            if not self.nfc_manager.authenticate_mifare(4):  # First block of sector 1
+                self.show_error("ERROR", "MIFARE authentication failed. The tag may be locked or use a different key.")
+                return
+        
+        # Start reading
         self.nfc_thread.read_mode = True
-        self.update_log("Ready to read NFC tags...")
+        self.nfc_thread.write_data = None
+        self.statusBar().showMessage("Reading tag...", 3000)
+        self.log("Started reading NFC tag")
     
-    def start_writing(self):
-        text = self.text_input.text().strip()
+    def start_writing(self, text=None):
+        """Prepare to write to NFC tags with MIFARE authentication support."""
+        if not hasattr(self, 'nfc_manager') or not self.nfc_manager:
+            self.show_error("ERROR", "NFC manager not initialized")
+            return
+            
+        # Get text from input if not provided
+        if text is None:
+            text = getattr(self, 'text_input', None)
+            if text:
+                text = text.text().strip()
+                
         if not text:
             QMessageBox.warning(self, "Error", "Please enter some text to write to the tag.")
             return
             
+        # Check if we have a current tag
+        if not hasattr(self, 'current_tag_info') or not self.current_tag_info:
+            self.show_error("WARNING", "No tag detected. Please place a tag near the reader.")
+            return
+            
+        # For MIFARE Classic tags, authenticate first
+        if (self.nfc_manager.nfc_ops.current_tag and 
+            self.nfc_manager.nfc_ops.current_tag['type'] in [
+                'MIFARE_CLASSIC_1K', 
+                'MIFARE_CLASSIC_4K'
+            ]):
+            # Try to authenticate with default key (FF FF FF FF FF FF)
+            if not self.nfc_manager.authenticate_mifare(4):  # First block of sector 1
+                self.show_error("ERROR", "MIFARE authentication failed. The tag may be locked or use a different key.")
+                return
+        
+        # Start writing
         self.nfc_thread.read_mode = False
         self.nfc_thread.write_data = text
         self.statusBar().showMessage("Ready to write to tag...", 3000)
