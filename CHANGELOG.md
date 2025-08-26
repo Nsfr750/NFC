@@ -5,7 +5,6 @@ All notable changes to the NFC Reader/Writer application will be documented in t
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-
 ## [1.1.0] - 2025-08-26
 
 ### Added
@@ -22,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Improved error handling and input validation
 - **Error Handling**: Added specific error messages for unsupported operations across all tag types
 - **Documentation**: Added comprehensive documentation of supported operations for each tag type in `docs/supported_operations.md`
+- Password recovery system with recovery key generation
+- Recovery dialog UI for resetting forgotten passwords
 
 ### Changed
 

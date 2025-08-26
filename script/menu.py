@@ -2,6 +2,12 @@ from PySide6 import QtGui, QtWidgets
 from PySide6.QtWidgets import QMenuBar, QMenu, QMessageBox
 from PySide6.QtCore import Slot, Qt
 import time
+import sys
+import os
+
+# Add the parent directory to the path to import settings_manager
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from script.settings_manager import settings_manager
 
 from .help_dialog import HelpDialog
 from .auth import AuthManager, PasswordDialog
@@ -108,16 +114,73 @@ class AppMenu:
         """Create the Security menu with its actions."""
         security_menu = self.menubar.addMenu("&Security")
         
+        # Session submenu
+        session_menu = security_menu.addMenu("&Session")
+        
+        # Lock Session action
+        self.lock_action = QtGui.QAction("&Lock Session", self.parent)
+        self.lock_action.setShortcut("Ctrl+L")
+        self.lock_action.triggered.connect(self.parent.lock_application)
+        session_menu.addAction(self.lock_action)
+        
+        # Session Timeout submenu
+        timeout_menu = session_menu.addMenu("&Timeout")
+        
+        # Timeout actions group
+        self.timeout_group = QtGui.QActionGroup(self.parent)
+        self.timeout_group.setExclusive(True)
+        
+        # Add timeout options
+        timeouts = [
+            ("5 minutes", 5),
+            ("15 minutes", 15),
+            ("30 minutes", 30),
+            ("1 hour", 60),
+            ("Never (not recommended)", 0)
+        ]
+        
+        current_timeout = settings_manager.get('security.session_timeout', 15)
+        
+        for text, minutes in timeouts:
+            action = QtGui.QAction(text, self.parent, checkable=True)
+            action.setData(minutes)
+            if minutes == current_timeout:
+                action.setChecked(True)
+            action.triggered.connect(self.set_session_timeout)
+            self.timeout_group.addAction(action)
+            timeout_menu.addAction(action)
+        
+        # Add separator
+        security_menu.addSeparator()
+        
         # Change Password action
         change_pw_action = QtGui.QAction("Change &Password...", self.parent)
         change_pw_action.triggered.connect(self.change_password)
         security_menu.addAction(change_pw_action)
+        
+        # Add separator
+        security_menu.addSeparator()
+        
+        # Password Recovery action
+        recovery_action = QtGui.QAction("Password &Recovery...", self.parent)
+        recovery_action.triggered.connect(self.show_password_recovery)
+        security_menu.addAction(recovery_action)
+        
+        # Add separator
+        security_menu.addSeparator()
         
         # Require Password action
         self.require_pw_action = QtGui.QAction("Require &Password", self.parent, checkable=True)
         self.require_pw_action.setChecked(self.auth_manager.is_password_set())
         self.require_pw_action.triggered.connect(self.toggle_password_protection)
         security_menu.addAction(self.require_pw_action)
+    
+    def set_session_timeout(self):
+        """Handle session timeout change from menu."""
+        action = self.sender()
+        if action and hasattr(self.parent, 'set_session_timeout'):
+            minutes = action.data()
+            self.parent.set_session_timeout(minutes)
     
     def create_help_menu(self):
         """Create the Help menu with its actions."""
@@ -185,6 +248,28 @@ class AppMenu:
                 self.parent,
                 "Success",
                 "Password updated successfully."
+            )
+    
+    def show_password_recovery(self):
+        """Show the password recovery dialog."""
+        from .recovery_dialog import RecoveryDialog
+        
+        if not self.auth_manager.is_password_set():
+            QMessageBox.information(
+                self.parent,
+                "No Password Set",
+                "There is no password set up to recover."
+            )
+            return
+            
+        dialog = RecoveryDialog(self.auth_manager, self.parent)
+        if dialog.exec() == QDialog.Accepted and hasattr(self, 'recovery_success'):
+            # If recovery was successful, update the UI accordingly
+            self.require_pw_action.setChecked(True)
+            QMessageBox.information(
+                self.parent,
+                "Password Recovered",
+                "Your password has been successfully recovered and updated."
             )
     
     def toggle_password_protection(self):

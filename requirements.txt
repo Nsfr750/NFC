@@ -8,6 +8,7 @@ pyusb>=1.2.1
 pywinusb>=0.4.2; sys_platform == 'win32'
 pywin32>=306; sys_platform == 'win32'
 Wand>=0.6.0
+libusb>=1.0.27.post4
 
 # Database
 sqlalchemy>=2.0.0

@@ -8,24 +8,133 @@ import logging
 from typing import Optional, Tuple
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QLineEdit, QPushButton, 
-    QLabel, QMessageBox, QCheckBox, QFileDialog
+    QLabel, QMessageBox, QCheckBox, QFileDialog,
+    QFrame
 )
 from PySide6.QtCore import Qt, Signal, QSettings
+from .password_strength import PasswordStrengthMeter, PasswordValidator
 from pathlib import Path
+
+# Add these imports at the top of auth.py
+import time
+from datetime import datetime, timedelta
 
 # Configure logger
 logger = logging.getLogger(__name__)
 
 class AuthManager:
-    """Handles password hashing and verification."""
+    """Handles password hashing, verification, and brute force protection."""
+    
+    # Brute force protection settings
+    MAX_ATTEMPTS = 5
+    LOCKOUT_DURATION = 300  # 5 minutes in seconds
     
     def __init__(self, config_dir: str = "config"):
         """Initialize the authentication manager."""
         self.config_dir = Path(config_dir)
         self.config_file = self.config_dir / "auth_config.json"
+        self.attempts_file = self.config_dir / "login_attempts.json"
         self.salt = None
         self.password_hash = None
         self._load_config()
+        self._ensure_attempts_file()
+        
+    def _ensure_attempts_file(self):
+        """Ensure the login attempts file exists."""
+        if not self.attempts_file.exists():
+            with open(self.attempts_file, 'w') as f:
+                json.dump({"attempts": 0, "last_attempt": None, "locked_until": None}, f)
+    
+    def _load_attempts(self):
+        """Load login attempts data."""
+        try:
+            with open(self.attempts_file, 'r') as f:
+                return json.load(f)
+        except Exception as e:
+            logger.error(f"Error loading login attempts: {e}")
+            return {"attempts": 0, "last_attempt": None, "locked_until": None}
+    
+    def _save_attempts(self, attempts_data):
+        """Save login attempts data."""
+        try:
+            with open(self.attempts_file, 'w') as f:
+                json.dump(attempts_data, f)
+        except Exception as e:
+            logger.error(f"Error saving login attempts: {e}")
+    
+    def is_locked_out(self):
+        """Check if the account is locked due to too many failed attempts."""
+        attempts_data = self._load_attempts()
+        locked_until = attempts_data.get("locked_until")
+        
+        if locked_until:
+            locked_until = datetime.fromisoformat(locked_until)
+            if datetime.now() < locked_until:
+                return True, locked_until
+            else:
+                # Reset if lockout period has passed
+                self._reset_attempts()
+                return False, None
+        return False, None
+    
+    def _reset_attempts(self):
+        """Reset the failed login attempts counter."""
+        self._save_attempts({
+            "attempts": 0,
+            "last_attempt": None,
+            "locked_until": None
+        })
+    
+    def record_failed_attempt(self):
+        """Record a failed login attempt."""
+        attempts_data = self._load_attempts()
+        now = datetime.now().isoformat()
+        
+        attempts = attempts_data.get("attempts", 0) + 1
+        locked_until = None
+        
+        if attempts >= self.MAX_ATTEMPTS:
+            locked_until = (datetime.now() + timedelta(seconds=self.LOCKOUT_DURATION)).isoformat()
+        
+        self._save_attempts({
+            "attempts": attempts,
+            "last_attempt": now,
+            "locked_until": locked_until
+        })
+    
+    def verify_password(self, password: str) -> tuple[bool, str]:
+        """
+        Verify a password against the stored hash.
+        
+        Args:
+            password: The password to verify
+            
+        Returns:
+            tuple: (success, message)
+        """
+        # Check if account is locked
+        is_locked, until = self.is_locked_out()
+        if is_locked:
+            remaining = (until - datetime.now()).seconds // 60 + 1
+            return False, f"Account locked. Try again in {remaining} minutes."
+        
+        # Verify password
+        if not self.password_hash:
+            return False, "No password set"
+            
+        hashed = self._hash_password(password)
+        if hashed == self.password_hash:
+            # Reset attempts on successful login
+            self._reset_attempts()
+            return True, "Authentication successful"
+        else:
+            # Record failed attempt
+            self.record_failed_attempt()
+            attempts_remaining = self.MAX_ATTEMPTS - self._load_attempts().get("attempts", 0)
+            
+            if attempts_remaining <= 0:
+                return False, "Too many failed attempts. Account locked for 5 minutes."
+            return False, f"Invalid password. {attempts_remaining} attempts remaining."
     
     def _load_config(self) -> None:
         """Load the authentication configuration."""
@@ -48,39 +157,49 @@ class AuthManager:
                 json.dump({
                     'salt': self.salt.hex() if self.salt else '',
                     'password_hash': self.password_hash or ''
-                }, f)
+                }, f, indent=4)
         except Exception as e:
             logger.error(f"Error saving auth config: {e}")
-
-def generate_recovery_key(salt: bytes, password_hash: str, output_path: str) -> bool:
-    """Generate a recovery key file for password recovery.
-    
-    Args:
-        salt: The password salt
-        password_hash: The hashed password
-        output_path: Path to save the recovery key file
-        
-    Returns:
-        bool: True if the recovery key was generated successfully, False otherwise
-    """
-    try:
-        # Create a recovery key with the same salt as the password
-        recovery_data = {
-            'salt': salt.hex(),
-            'recovery_hash': hashlib.sha256(
-                (salt.hex() + password_hash).encode()
-            ).hexdigest()
-        }
-        
-        # Save the recovery key to a file
-        with open(output_path, 'w') as f:
-            json.dump(recovery_data, f, indent=2)
             
-        return True
+    def is_password_set(self) -> bool:
+        """Check if a password is currently set.
         
-    except Exception as e:
-        logger.error(f"Failed to generate recovery key: {e}")
-        return False
+        Returns:
+            bool: True if a password is set (both hash and salt exist), False otherwise
+        """
+        return bool(self.password_hash and self.salt)
+        
+    def _generate_recovery_key(self, password: str, salt: bytes, 
+                            password_hash: str, output_path: str) -> bool:
+        """Generate a recovery key file.
+        
+        Args:
+            password: The password to generate recovery for
+            salt: The password salt
+            password_hash: The hashed password
+            output_path: Path to save the recovery key file
+            
+        Returns:
+            bool: True if the recovery key was generated successfully, False otherwise
+        """
+        try:
+            # Create a recovery key with the same salt as the password
+            recovery_data = {
+                'salt': salt.hex(),
+                'recovery_hash': hashlib.sha256(
+                    (salt.hex() + password_hash).encode()
+                ).hexdigest()
+            }
+            
+            # Save the recovery key to a file
+            with open(output_path, 'w') as f:
+                json.dump(recovery_data, f, indent=2)
+                
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to generate recovery key: {e}")
+            return False
 
 
 def verify_recovery_key(recovery_key_path: str, salt: bytes, password_hash: str) -> bool:
@@ -235,10 +354,14 @@ class PasswordDialog(QDialog):
     def init_ui(self) -> None:
         """Initialize the user interface."""
         layout = QVBoxLayout(self)
+        layout.setSpacing(10)
         
         if self.mode == 'set':
             title = "Set Password"
             message = "Set a password to protect sensitive operations."
+        elif self.mode == 'change':
+            title = "Change Password"
+            message = "Enter your current password and set a new one."
         else:
             title = "Authentication Required"
             message = "Please enter your password to continue."
@@ -253,54 +376,61 @@ class PasswordDialog(QDialog):
             self.current_pw_edit = QLineEdit()
             self.current_pw_edit.setEchoMode(QLineEdit.Password)
             layout.addWidget(self.current_pw_edit)
-        
-        layout.addWidget(QLabel("Password:" if self.mode != 'change' else "New Password:"))
-        self.new_pw_edit = QLineEdit()
-        self.new_pw_edit.setEchoMode(QLineEdit.Password)
-        layout.addWidget(self.new_pw_edit)
-        
-        # Confirm password field (for setting/changing password)
-        if self.mode != 'verify':
+            
+        # New password field
+        if self.mode in ['set', 'change']:
+            layout.addWidget(QLabel("New Password:" if self.mode == 'change' else "Password:"))
+            self.new_pw_edit = QLineEdit()
+            self.new_pw_edit.setEchoMode(QLineEdit.Password)
+            layout.addWidget(self.new_pw_edit)
+            
+            # Password strength meter
+            self.strength_meter = PasswordStrengthMeter()
+            layout.addWidget(self.strength_meter)
+            
+            # Connect password field to strength meter
+            self.new_pw_edit.textChanged.connect(self.update_password_strength)
+            
+            # Confirm password field
             layout.addWidget(QLabel("Confirm Password:"))
             self.confirm_pw_edit = QLineEdit()
             self.confirm_pw_edit.setEchoMode(QLineEdit.Password)
             layout.addWidget(self.confirm_pw_edit)
+        else:
+            # For verify mode
+            layout.addWidget(QLabel("Password:"))
+            self.new_pw_edit = QLineEdit()
+            self.new_pw_edit.setEchoMode(QLineEdit.Password)
+            layout.addWidget(self.new_pw_edit)
         
         # Show password checkbox
-        self.show_pw_cb = QCheckBox("Show password")
-        self.show_pw_cb.stateChanged.connect(self.toggle_password_visibility)
-        layout.addWidget(self.show_pw_cb)
-        
-        # Forgot password link (only in verify mode when recovery is allowed)
-        if self.mode == 'verify' and self.allow_recovery and self.auth_manager.is_password_set():
-            forgot_pw_btn = QPushButton("Forgot Password?")
-            forgot_pw_btn.setStyleSheet("text-align: left; color: #1E88E5; border: none;")
-            forgot_pw_btn.clicked.connect(self.show_recovery_dialog)
-            layout.addWidget(forgot_pw_btn)
+        self.show_password_cb = QCheckBox("Show password")
+        self.show_password_cb.toggled.connect(self.toggle_password_visibility)
+        layout.addWidget(self.show_password_cb)
         
         # Buttons
-        btn_layout = QHBoxLayout()
-        self.ok_btn = QPushButton("OK")
-        self.ok_btn.clicked.connect(self.verify)
+        button_box = QHBoxLayout()
+        self.ok_button = QPushButton("OK")
+        self.ok_button.clicked.connect(self.verify)
+        self.cancel_button = QPushButton("Cancel")
+        self.cancel_button.clicked.connect(self.reject)
         
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.clicked.connect(self.reject)
+        button_box.addWidget(self.ok_button)
+        button_box.addWidget(self.cancel_button)
+        layout.addLayout(button_box)
         
-        btn_layout.addStretch()
-        btn_layout.addWidget(self.ok_btn)
-        btn_layout.addWidget(cancel_btn)
+        # Forgot password link (only in verify mode)
+        if self.mode == 'verify' and self.allow_recovery:
+            self.forgot_btn = QPushButton("Forgot Password?")
+            self.forgot_btn.setStyleSheet("text-align: left; color: #0066cc; border: none;")
+            self.forgot_btn.setCursor(Qt.PointingHandCursor)
+            self.forgot_btn.clicked.connect(self.show_recovery_dialog)
+            layout.addWidget(self.forgot_btn)
         
-        layout.addLayout(btn_layout)
-        
-        # Set focus to the appropriate field
-        if hasattr(self, 'current_pw_edit'):
-            self.current_pw_edit.setFocus()
-        else:
-            self.new_pw_edit.setFocus()
-            
-        # Set dialog properties
+        # Dialog properties
         self.setModal(True)
         self.setWindowModality(Qt.ApplicationModal)
+        self.setMinimumWidth(350)
     
     def toggle_password_visibility(self, checked: bool) -> None:
         """Toggle password visibility."""
@@ -310,6 +440,11 @@ class PasswordDialog(QDialog):
         if hasattr(self, 'current_pw_edit'):
             self.current_pw_edit.setEchoMode(mode)
     
+    def update_password_strength(self, password: str) -> None:
+        """Update the password strength meter based on the current password."""
+        if hasattr(self, 'strength_meter') and self.strength_meter is not None:
+            self.strength_meter.update_strength(password)
+    
     def verify(self) -> None:
         """Verify the entered password."""
         try:
@@ -317,8 +452,9 @@ class PasswordDialog(QDialog):
                 # Verify current password if changing
                 if self.mode == 'change' and self.auth_manager.is_password_set():
                     current_pw = self.current_pw_edit.text()
-                    if not self.auth_manager.verify_password(current_pw):
-                        QMessageBox.warning(self, "Error", "Incorrect current password.")
+                    success, message = self.auth_manager.verify_password(current_pw)
+                    if not success:
+                        QMessageBox.warning(self, "Error", message)
                         return
                 
                 # Verify new password
@@ -332,6 +468,20 @@ class PasswordDialog(QDialog):
                 if new_pw != confirm_pw:
                     QMessageBox.warning(self, "Error", "Passwords do not match.")
                     return
+                    
+                # Check password strength
+                if hasattr(self, 'strength_meter') and self.strength_meter is not None:
+                    strength = self.strength_meter.validator.calculate_strength(new_pw)
+                    if strength < 60:  # Minimum strength threshold
+                        reply = QMessageBox.warning(
+                            self,
+                            "Weak Password",
+                            "The password you entered is weak. Are you sure you want to use it?",
+                            QMessageBox.Yes | QMessageBox.No,
+                            QMessageBox.No
+                        )
+                        if reply == QMessageBox.No:
+                            return
                 
                 # Ask if user wants to generate a recovery key
                 if self.mode == 'set':
@@ -427,7 +577,7 @@ class PasswordDialog(QDialog):
             
         dialog = PasswordDialog(auth_manager, 'verify', parent)
         result = dialog.exec_()
-        return result == QDialog.Accepted and dialog.ok_clicked
+        return result == QDialog.Accepted
     
     @staticmethod
     def set_password(auth_manager: 'AuthManager', parent=None) -> bool:
@@ -442,4 +592,4 @@ class PasswordDialog(QDialog):
             parent
         )
         result = dialog.exec_()
-        return result == QDialog.Accepted and dialog.ok_clicked
+        return result == QDialog.Accepted

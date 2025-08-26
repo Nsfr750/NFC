@@ -5,9 +5,12 @@ from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QFormLayout,
                              QDialogButtonBox, QCheckBox, QSpinBox, QComboBox,
                              QLineEdit, QFileDialog, QLabel, QGroupBox, QTabWidget,
                              QListWidget, QListWidgetItem, QPushButton, QMessageBox, QWidget)
-from PySide6.QtCore import Qt, QSettings, Signal, QSize
+from PySide6.QtCore import Qt, Signal, QSize
 from PySide6.QtGui import QIcon, QFont
 import os
+import json
+from pathlib import Path
+from script.settings_manager import settings_manager
 
 class SettingsDialog(QDialog):
     """Dialog for application settings and preferences."""
@@ -21,7 +24,6 @@ class SettingsDialog(QDialog):
         self.setMinimumSize(700, 500)
         
         # Initialize settings
-        self.settings = QSettings("NFCReader", "NFCReaderApp")
         self.current_settings = {}
         
         # Initialize UI
@@ -257,37 +259,40 @@ class SettingsDialog(QDialog):
             self.log_file_path.setText(file_path)
     
     def load_settings(self):
-        """Load settings from QSettings."""
-        # General
-        self.auto_save_checkbox.setChecked(self.settings.value("auto_save/enabled", True, bool))
-        self.auto_save_interval.setValue(self.settings.value("auto_save/interval", 5, int))
-        self.load_last_session.setChecked(self.settings.value("startup/load_last_session", True, bool))
-        self.check_updates.setChecked(self.settings.value("startup/check_updates", True, bool))
-        
-        # NFC
-        self.reader_timeout.setValue(self.settings.value("nfc/reader_timeout", 10, int))
-        self.auto_connect.setChecked(self.settings.value("nfc/auto_connect", False, bool))
-        self.beep_on_read.setChecked(self.settings.value("nfc/beep_on_read", True, bool))
-        self.verify_after_write.setChecked(self.settings.value("nfc/verify_after_write", True, bool))
-        self.auto_lock.setChecked(self.settings.value("nfc/auto_lock", False, bool))
-        self.retry_count.setValue(self.settings.value("nfc/retry_count", 1, int))
-        
-        # Interface
-        self.theme_combo.setCurrentText(self.settings.value("interface/theme", "System"))
-        self.font_size.setValue(self.settings.value("interface/font_size", 10, int))
-        self.show_toolbar.setChecked(self.settings.value("interface/show_toolbar", True, bool))
-        self.show_statusbar.setChecked(self.settings.value("interface/show_statusbar", True, bool))
-        self.word_wrap.setChecked(self.settings.value("editor/word_wrap", True, bool))
-        self.line_numbers.setChecked(self.settings.value("editor/line_numbers", True, bool))
-        self.highlight_current_line.setChecked(self.settings.value("editor/highlight_current_line", True, bool))
-        self.tab_width.setValue(self.settings.value("editor/tab_width", 4, int))
-        
-        # Advanced
-        self.log_level.setCurrentText(self.settings.value("logging/level", "Info"))
-        self.log_to_file.setChecked(self.settings.value("logging/to_file", False, bool))
-        self.log_file_path.setText(self.settings.value("logging/file_path", "nfc_reader.log"))
-        self.db_auto_cleanup.setChecked(self.settings.value("database/auto_cleanup", False, bool))
-        self.db_cleanup_days.setValue(self.settings.value("database/cleanup_days", 30, int))
+        """Load settings from settings manager."""
+        try:
+            # General
+            self.auto_save_checkbox.setChecked(settings_manager.get('auto_save.enabled', True))
+            self.auto_save_interval.setValue(settings_manager.get('auto_save.interval', 5))
+            self.load_last_session.setChecked(settings_manager.get('startup.load_last_session', True))
+            self.check_updates.setChecked(settings_manager.get('startup.check_updates', True))
+            
+            # NFC
+            self.reader_timeout.setValue(settings_manager.get('nfc.reader_timeout', 10))
+            self.auto_connect.setChecked(settings_manager.get('nfc.auto_connect', False))
+            self.beep_on_read.setChecked(settings_manager.get('nfc.beep_on_read', True))
+            self.verify_after_write.setChecked(settings_manager.get('nfc.verify_after_write', True))
+            self.auto_lock.setChecked(settings_manager.get('nfc.auto_lock', False))
+            self.retry_count.setValue(settings_manager.get('nfc.retry_count', 1))
+            
+            # Interface
+            self.theme_combo.setCurrentText(settings_manager.get('interface.theme', 'System'))
+            self.font_size.setValue(settings_manager.get('interface.font_size', 10))
+            self.show_toolbar.setChecked(settings_manager.get('interface.show_toolbar', True))
+            self.show_statusbar.setChecked(settings_manager.get('interface.show_statusbar', True))
+            self.word_wrap.setChecked(settings_manager.get('editor.word_wrap', True))
+            self.line_numbers.setChecked(settings_manager.get('editor.line_numbers', True))
+            self.highlight_current_line.setChecked(settings_manager.get('editor.highlight_current_line', True))
+            self.tab_width.setValue(settings_manager.get('editor.tab_width', 4))
+            
+            # Advanced
+            self.log_level.setCurrentText(settings_manager.get('logging.level', 'Info'))
+            self.log_to_file.setChecked(settings_manager.get('logging.to_file', False))
+            self.log_file_path.setText(settings_manager.get('logging.file_path', 'nfc_reader.log'))
+            self.db_auto_cleanup.setChecked(settings_manager.get('database.auto_cleanup', False))
+            self.db_cleanup_days.setValue(settings_manager.get('database.cleanup_days', 30))
+        except Exception as e:
+            print(f"Error loading settings: {e}")
     
     def get_current_settings(self):
         """Get all current settings as a dictionary."""
@@ -345,50 +350,29 @@ class SettingsDialog(QDialog):
         return settings
     
     def save_settings(self):
-        """Save settings to QSettings and emit signal."""
-        settings = self.get_current_settings()
-        
-        # Save to QSettings
-        self.settings.beginGroup("auto_save")
-        self.settings.setValue("enabled", settings['auto_save']['enabled'])
-        self.settings.setValue("interval", settings['auto_save']['interval'])
-        self.settings.endGroup()
-        
-        self.settings.beginGroup("startup")
-        self.settings.setValue("load_last_session", settings['startup']['load_last_session'])
-        self.settings.setValue("check_updates", settings['startup']['check_updates'])
-        self.settings.endGroup()
-        
-        self.settings.beginGroup("nfc")
-        for key, value in settings['nfc'].items():
-            self.settings.setValue(key, value)
-        self.settings.endGroup()
-        
-        self.settings.beginGroup("interface")
-        for key, value in settings['interface'].items():
-            self.settings.setValue(key, value)
-        self.settings.endGroup()
-        
-        self.settings.beginGroup("editor")
-        for key, value in settings['editor'].items():
-            self.settings.setValue(key, value)
-        self.settings.endGroup()
-        
-        self.settings.beginGroup("logging")
-        for key, value in settings['logging'].items():
-            self.settings.setValue(key, value)
-        self.settings.endGroup()
-        
-        self.settings.beginGroup("database")
-        for key, value in settings['database'].items():
-            self.settings.setValue(key, value)
-        self.settings.endGroup()
-        
-        # Emit signal with settings
-        self.settings_saved.emit(settings)
-        
-        # Close dialog
-        self.accept()
+        """Save settings to settings manager and emit signal."""
+        try:
+            # Get current settings
+            settings = self.get_current_settings()
+            
+            # Save to settings manager
+            for section, section_data in settings.items():
+                for key, value in section_data.items():
+                    settings_manager.set(f"{section}.{key}", value)
+            
+            # Save settings to file
+            if not settings_manager.save_settings():
+                raise Exception("Failed to save settings to file")
+            
+            # Emit signal with settings
+            self.settings_saved.emit(settings)
+            
+            # Close dialog
+            self.accept()
+            
+        except Exception as e:
+            print(f"Error saving settings: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to save settings: {str(e)}")
     
     def confirm_restore_defaults(self):
         """Show confirmation dialog before restoring defaults."""

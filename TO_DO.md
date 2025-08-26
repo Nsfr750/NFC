@@ -32,7 +32,11 @@
       - [x] Support for extended commands
   - [x] Add specific error handling for unsupported operations
   - [x] Update documentation with supported operations per tag type
-- [ ] Implement password recovery mechanism
+- [x] Implement password recovery mechanism
+  - [x] Implement recovery key generation
+  - [x] Create recovery dialog UI
+  - [x] Add recovery key verification
+  - [x] Update documentation
 - [ ] Add brute force protection for password attempts
 
 ## Medium Priority

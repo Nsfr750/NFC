@@ -85,7 +85,7 @@ class AppToolBar(QToolBar):
             "Read Tag",
             self.parent
         )
-        self.read_action.setShortcut(Qt.CTRL + Qt.Key_R)
+        self.read_action.setShortcut(Qt.CTRL | Qt.Key_R)
         self.read_action.setStatusTip("Start reading NFC tags (Ctrl+R)")
         self.read_action.triggered.connect(self.parent.start_reading)
         
@@ -99,7 +99,7 @@ class AppToolBar(QToolBar):
             "Clear Log",
             self.parent
         )
-        self.clear_action.setShortcut(Qt.CTRL + Qt.Key_L)
+        self.clear_action.setShortcut(Qt.CTRL | Qt.Key_L)
         self.clear_action.setStatusTip("Clear the log display (Ctrl+L)")
         self.clear_action.triggered.connect(self.parent.clear_log)
         
@@ -110,7 +110,7 @@ class AppToolBar(QToolBar):
             self.parent,
             checkable=True
         )
-        self.mode_action.setShortcut(Qt.CTRL + Qt.Key_M)
+        self.mode_action.setShortcut(Qt.CTRL | Qt.Key_M)
         self.mode_action.setStatusTip("Toggle between read and write mode (Ctrl+M)")
         self.mode_action.setChecked(True)
         self.mode_action.toggled.connect(self.toggle_read_write_mode)
@@ -131,6 +131,16 @@ class AppToolBar(QToolBar):
         write_container.setLayout(write_layout)
         write_container.setMinimumWidth(300)
         self.addWidget(write_container)
+        
+        # Add lock button
+        self.lock_button = QAction(
+            self.style().standardIcon(getattr(QtWidgets.QStyle, 'SP_ComputerIcon')),  # Placeholder icon
+            "Lock Session",
+            self.parent
+        )
+        self.lock_button.setShortcut("Ctrl+Shift+L")
+        self.lock_button.triggered.connect(self.parent.lock_application)
+        self.addAction(self.lock_button)
         
         # Add separator and other actions
         self.addSeparator()

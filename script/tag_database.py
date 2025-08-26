@@ -41,6 +41,7 @@ class TagDatabase:
             db_path: Path to the SQLite database file
         """
         self.db_path = db_path
+        self.conn = None
         self._ensure_data_dir()
         self._init_db()
     
@@ -50,9 +51,18 @@ class TagDatabase:
     
     def _get_connection(self) -> sqlite3.Connection:
         """Get a database connection."""
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        return conn
+        if self.conn is None:
+            self.conn = sqlite3.connect(self.db_path)
+            self.conn.row_factory = sqlite3.Row
+            # Enable foreign key support
+            self.conn.execute('PRAGMA foreign_keys = ON')
+        return self.conn
+        
+    def close(self) -> None:
+        """Close the database connection."""
+        if self.conn is not None:
+            self.conn.close()
+            self.conn = None
     
     def _init_db(self) -> None:
         """Initialize the database schema."""
