@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Application Locking**: Added ability to lock the application with password protection
+- **Session Management**: Implemented session timeout and auto-lock features
+- **UI Enhancements**: Improved error handling and user feedback
+- **Documentation**: Added CONTRIBUTING.md and PREREQUISITES.md
+- **Code Quality**: Added type hints and improved code documentation
 - **Type 1 (Topaz) Operations**: Added support for reading and writing Type 1 tags
 - **Type 2 (MIFARE Ultralight/NTAG) Operations**: Added support for reading and writing Type 2 tags
 - **Type 3 (FeliCa) Operations**: Added support for reading and writing Type 3 tags
@@ -32,12 +37,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Type 2 (MIFARE Ultralight/NTAG) Operations**: Fixed bug in Type 2 tag detection
 - **Type 5 (ISO 15693) Operations**: Fixed block size validation in write operations
+- Fixed issue with application locking functionality
+- Resolved password recovery flow issues
+- Fixed UI layout problems on high-DPI displays
+- Addressed several minor bugs in tag reading/writing operations
 
 ## [1.0.1] - 2025-08-26
 
-### Added
+### Security
 
-- **Security**: Added password protection for sensitive operations
+- Added password protection for sensitive operations
   - Secure password hashing with PBKDF2 and salt
   - Password change functionality
   - Toggle for enabling/disabling password protection
@@ -59,17 +68,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Search functionality
   - Responsive design for all devices
 
-### Changed
+### Documentation
 
-- **Documentation**:
-  - Updated README.md with new documentation features
+- Updated README.md with new documentation features
   - Improved installation and setup instructions
   - Added examples and code samples
   - Enhanced navigation and organization
 
 ## [1.0.0] - 2025-08-26
 
-### Added
+### Features
 
 - **Tag Emulation**: Experimental support for emulating various NFC tag types
 - **Batch Operations**: Process multiple tags in sequence with automated workflows
@@ -137,7 +145,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Compatibility**: Improved compatibility with various NFC readers
 - **Stability**: General stability improvements and bug fixes
 
-### Changed
+### Improvements
 
 - **Codebase**: Major refactoring for better maintainability and performance
 - **UI/UX**: Completely redesigned user interface with modern look and feel
@@ -151,7 +159,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Compatibility**: Better support for various NFC readers and tags
 - **Stability**: Improved application stability and reliability
 
-### Fixed
+### Bug Fixes
 
 - **Tag Detection**: Issues with certain tag types not being detected
 - **Memory Leaks**: Fixed memory leaks in NFC operations
@@ -167,7 +175,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.0] - 2025-08-26
 
-### Added
+### Initial Release
 
 - Initial public release of NFC Reader/Writer
 - Basic tag reading and writing functionality

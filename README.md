@@ -1,8 +1,51 @@
-# NFC Reader/Writer Application
+# 🚀 NFC Reader/Writer Application
+
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 A powerful PySide6-based application for reading from and writing to various types of NFC tags with advanced features and a user-friendly interface.
 
-## ✨ Features
+## Installation
+
+### Prerequisites
+
+- Python 3.9 or higher
+- NFC reader hardware (ACR122U, ACR1252U, etc.)
+- Required system libraries (see [PREREQUISITES.md](PREREQUISITES.md))
+
+### Quick Start
+
+1. Clone the repository:
+
+   ```bash
+   git clone https://github.com/Nsfr750/NFC.git
+   cd NFC
+   ```
+
+2. Create and activate a virtual environment:
+
+   ```bash
+   python -m venv venv
+   .\venv\Scripts\activate  # Windows
+   source venv/bin/activate  # Linux/Mac
+   ```
+
+3. Install dependencies:
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. Run the application:
+
+   ```bash
+   python main.py
+   ```
+
+For detailed installation instructions, see [PREREQUISITES.md](PREREQUISITES.md).
+
+## Features
 
 - **Multi-tag Support**: Comprehensive support for various NFC tag types including:
   - NTAG (NTAG213, NTAG215, NTAG216)
@@ -203,16 +246,16 @@ Contributions are welcome! Here's how you can help:
 4. Improve documentation
 5. Share your feedback and ideas
 
-Please read our [contributing guidelines](CONTRIBUTING.md) before submitting pull requests.
+Please read our [Contributing Guidelines](CONTRIBUTING.md) for details on how to contribute to this project.
 
 ## 📝 License
 
-This project is licensed under the [GNU General Public License v3.0](LICENSE).
+This project is licensed under the [GPL-3.0 License](LICENSE).
 
 ## 👤 Author
 
 - **Nsfr750**
-  - Email: nsfr750@yandex.com
+  - Email: [nsfr750@yandex.com](mailto:nsfr750@yandex.com)
   - GitHub: [@Nsfr750](https://github.com/Nsfr750)
   - Discord: [Join our community](https://discord.gg/ryqNeuRYjD)
 
