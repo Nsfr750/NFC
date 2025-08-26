@@ -1,0 +1,425 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="it" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Guida alla Risoluzione dei Problemi &mdash; Documentazione Lettore/Scrittore NFC 1.0.0 </title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+      <link rel="stylesheet" type="text/css" href="_static/custom.css" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=eba8e968"></script>
+      <script src="_static/doctools.js?v=9a2dae69"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="_static/copybutton.js?v=fc97db16"></script>
+      <script src="_static/translations.js?v=da26b4cc"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Indice" href="genindex.html" />
+    <link rel="search" title="Cerca" href="search.html" />
+    <link rel="next" title="Contribuire a Lettore/Scrittore NFC" href="contributing.html" />
+    <link rel="prev" title="Domande Frequenti" href="faq.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search"  style="background: #2980B9" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            Lettore/Scrittore NFC
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Cerca documenti" aria-label="Cerca documenti" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Menu di navigazione">
+              <p class="caption" role="heading"><span class="caption-text">Indice:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">Guida Introduttiva</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="getting_started.html#installazione">Installazione</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="getting_started.html#prerequisiti">Prerequisiti</a></li>
+<li class="toctree-l3"><a class="reference internal" href="getting_started.html#installazione-su-windows">Installazione su Windows</a></li>
+<li class="toctree-l3"><a class="reference internal" href="getting_started.html#installazione-su-linux">Installazione su Linux</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started.html#primo-avvio">Primo Avvio</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started.html#utilizzo-base">Utilizzo Base</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="getting_started.html#lettura-di-un-tag">Lettura di un Tag</a></li>
+<li class="toctree-l3"><a class="reference internal" href="getting_started.html#scrittura-su-un-tag">Scrittura su un Tag</a></li>
+<li class="toctree-l3"><a class="reference internal" href="getting_started.html#salvataggio-dati-del-tag">Salvataggio Dati del Tag</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started.html#prossimi-passi">Prossimi Passi</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="user_guide.html">Guida Utente</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="user_guide.html#panoramica-dell-interfaccia">Panoramica dell’Interfaccia</a></li>
+<li class="toctree-l2"><a class="reference internal" href="user_guide.html#lettura-dei-tag">Lettura dei Tag</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="user_guide.html#lettura-manuale">Lettura Manuale</a></li>
+<li class="toctree-l3"><a class="reference internal" href="user_guide.html#lettura-automatica">Lettura Automatica</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="user_guide.html#scrittura-sui-tag">Scrittura sui Tag</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="user_guide.html#scrittura-di-testo">Scrittura di Testo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="user_guide.html#scrittura-di-url">Scrittura di URL</a></li>
+<li class="toctree-l3"><a class="reference internal" href="user_guide.html#scrittura-di-informazioni-di-contatto">Scrittura di Informazioni di Contatto</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="user_guide.html#gestione-del-database-dei-tag">Gestione del Database dei Tag</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="user_guide.html#salvataggio-dei-tag">Salvataggio dei Tag</a></li>
+<li class="toctree-l3"><a class="reference internal" href="user_guide.html#ricerca-dei-tag">Ricerca dei Tag</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="user_guide.html#funzionalita-avanzate">Funzionalità Avanzate</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="user_guide.html#emulazione-tag">Emulazione Tag</a></li>
+<li class="toctree-l3"><a class="reference internal" href="user_guide.html#elaborazione-in-batch">Elaborazione in Batch</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="user_guide.html#risoluzione-dei-problemi">Risoluzione dei Problemi</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="user_guide.html#problemi-comuni">Problemi Comuni</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="user_guide.html#scorciatoie-da-tastiera">Scorciatoie da Tastiera</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api_reference.html">Riferimento API</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#modulo-core">Modulo Core</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#modulo-lettore">Modulo Lettore</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#modulo-scrittore">Modulo Scrittore</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#modulo-database">Modulo Database</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#modulo-utilita">Modulo Utilità</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#eccezioni">Eccezioni</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#costanti">Costanti</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="faq.html">Domande Frequenti</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#generale">Generale</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="faq.html#quali-tipi-di-tag-nfc-sono-supportati">Quali tipi di tag NFC sono supportati?</a></li>
+<li class="toctree-l3"><a class="reference internal" href="faq.html#c-e-un-limite-al-numero-di-tag-che-posso-memorizzare-nel-database">C’è un limite al numero di tag che posso memorizzare nel database?</a></li>
+<li class="toctree-l3"><a class="reference internal" href="faq.html#posso-utilizzare-piu-lettori-nfc-contemporaneamente">Posso utilizzare più lettori NFC contemporaneamente?</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#utilizzo">Utilizzo</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="faq.html#come-faccio-a-sapere-se-il-mio-lettore-nfc-e-correttamente-connesso">Come faccio a sapere se il mio lettore NFC è correttamente connesso?</a></li>
+<li class="toctree-l3"><a class="reference internal" href="faq.html#perche-non-riesco-a-scrivere-sul-mio-tag-nfc">Perché non riesco a scrivere sul mio tag NFC?</a></li>
+<li class="toctree-l3"><a class="reference internal" href="faq.html#posso-usare-questa-applicazione-per-clonare-carte-nfc">Posso usare questa applicazione per clonare carte NFC?</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#tecnico">Tecnico</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="faq.html#in-quale-linguaggio-di-programmazione-e-scritta-questa-applicazione">In quale linguaggio di programmazione è scritta questa applicazione?</a></li>
+<li class="toctree-l3"><a class="reference internal" href="faq.html#il-codice-sorgente-e-disponibile">Il codice sorgente è disponibile?</a></li>
+<li class="toctree-l3"><a class="reference internal" href="faq.html#come-posso-contribuire-al-progetto">Come posso contribuire al progetto?</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#risoluzione-dei-problemi">Risoluzione dei Problemi</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="faq.html#il-mio-lettore-nfc-non-viene-rilevato">Il mio lettore NFC non viene rilevato</a></li>
+<li class="toctree-l3"><a class="reference internal" href="faq.html#l-applicazione-si-blocca-durante-la-lettura-di-un-tag">L’applicazione si blocca durante la lettura di un tag</a></li>
+<li class="toctree-l3"><a class="reference internal" href="faq.html#l-applicazione-e-lenta-durante-la-lettura-di-piu-tag">L’applicazione è lenta durante la lettura di più tag</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Guida alla Risoluzione dei Problemi</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#problemi-di-connessione">Problemi di Connessione</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#lettore-nfc-non-rilevato">Lettore NFC Non Rilevato</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#problemi-di-lettura-tag">Problemi di Lettura Tag</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#tag-non-rilevato">Tag Non Rilevato</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#problemi-di-scrittura">Problemi di Scrittura</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#impossibile-scrivere-sul-tag">Impossibile Scrivere sul Tag</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#problemi-dell-applicazione">Problemi dell’Applicazione</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#arresti-improvvisi">Arresti Improvvisi</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#problemi-di-prestazioni">Problemi di Prestazioni</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#lettura-scrittura-lenta">Lettura/Scrittura Lenta</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#messaggi-di-errore-comuni">Messaggi di Errore Comuni</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#lettore-non-trovato">«Lettore Non Trovato»</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#tag-non-supportato">«Tag Non Supportato»</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#memoria-insufficiente">«Memoria Insufficiente»</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#come-ottenere-aiuto">Come Ottenere Aiuto</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contribuire a Lettore/Scrittore NFC</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="contributing.html#come-contribuire">Come Contribuire</a></li>
+<li class="toctree-l2"><a class="reference internal" href="contributing.html#linee-guida-per-il-codice">Linee Guida per il Codice</a></li>
+<li class="toctree-l2"><a class="reference internal" href="contributing.html#segnalare-bug">Segnalare Bug</a></li>
+<li class="toctree-l2"><a class="reference internal" href="contributing.html#richieste-di-funzionalita">Richieste di Funzionalità</a></li>
+<li class="toctree-l2"><a class="reference internal" href="contributing.html#codice-di-condotta">Codice di Condotta</a></li>
+<li class="toctree-l2"><a class="reference internal" href="contributing.html#licenza">Licenza</a></li>
+<li class="toctree-l2"><a class="reference internal" href="contributing.html#grazie">Grazie!</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Menu navigazione dispositivi mobili"  style="background: #2980B9" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Lettore/Scrittore NFC</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content style-external-links">
+          <div role="navigation" aria-label="Naviga tra le pagine">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Guida alla Risoluzione dei Problemi</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/Nsfr750/NFC/blob/main/docs/ITA/troubleshooting.rst" class="fa fa-github"> Modifica su GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="guida-alla-risoluzione-dei-problemi">
+<span id="risoluzione-problemi"></span><h1>Guida alla Risoluzione dei Problemi<a class="headerlink" href="#guida-alla-risoluzione-dei-problemi" title="Link to this heading"></a></h1>
+<p>Questa guida ti aiuta a risolvere i problemi comuni che potresti incontrare utilizzando l’applicazione Lettore/Scrittore NFC.</p>
+<section id="problemi-di-connessione">
+<h2>Problemi di Connessione<a class="headerlink" href="#problemi-di-connessione" title="Link to this heading"></a></h2>
+<section id="lettore-nfc-non-rilevato">
+<h3>Lettore NFC Non Rilevato<a class="headerlink" href="#lettore-nfc-non-rilevato" title="Link to this heading"></a></h3>
+<p><strong>Sintomi:</strong>
+- L’applicazione mostra «Nessun lettore connesso»
+- Il lettore non è elencato nel menu dei dispositivi</p>
+<p><strong>Soluzioni:</strong>
+1. <strong>Controlla le connessioni fisiche:</strong></p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Assicurati che il lettore sia correttamente connesso al computer</p></li>
+<li><p>Prova una diversa porta USB</p></li>
+<li><p>Se usi un hub USB, collega direttamente al computer</p></li>
+</ul>
+</div></blockquote>
+<ol class="arabic" start="2">
+<li><p><strong>Verifica i driver:</strong>
+- Windows: controlla il Gestione dispositivi per eventuali punti esclamativi gialli
+- Linux: assicurati di avere i permessi necessari (aggiungi il tuo utente al gruppo <cite>plugdev</cite>)
+- Prova a reinstallare i driver del lettore</p></li>
+<li><p><strong>Riavvia i servizi:</strong>
+- Riavvia il servizio PC/SC:</p>
+<blockquote>
+<div><p><code class="docutils literal notranslate"><span class="pre">`bash</span>
+<span class="pre">sudo</span> <span class="pre">systemctl</span> <span class="pre">restart</span> <span class="pre">pcscd</span>&#160; <span class="pre">#</span> <span class="pre">Linux</span>
+<span class="pre">net</span> <span class="pre">stop</span> <span class="pre">&quot;Smart</span> <span class="pre">Card&quot;</span> <span class="pre">&amp;&amp;</span> <span class="pre">net</span> <span class="pre">start</span> <span class="pre">&quot;Smart</span> <span class="pre">Card&quot;</span>&#160; <span class="pre">#</span> <span class="pre">Windows</span>
+<span class="pre">`</span></code></p>
+</div></blockquote>
+</li>
+<li><p><strong>Prova con altro software:</strong>
+- Prova a utilizzare il lettore con altro software NFC per isolare il problema</p></li>
+</ol>
+</section>
+</section>
+<section id="problemi-di-lettura-tag">
+<h2>Problemi di Lettura Tag<a class="headerlink" href="#problemi-di-lettura-tag" title="Link to this heading"></a></h2>
+<section id="tag-non-rilevato">
+<h3>Tag Non Rilevato<a class="headerlink" href="#tag-non-rilevato" title="Link to this heading"></a></h3>
+<p><strong>Sintomi:</strong>
+- Il lettore è rilevato ma non riconosce i tag
+- Appare il messaggio «Nessun tag trovato»</p>
+<p><strong>Soluzioni:</strong>
+1. <strong>Controlla la posizione del tag:</strong></p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Assicurati che il tag sia correttamente allineato con l’antenna del lettore</p></li>
+<li><p>Muovi il tag per trovare la posizione ottimale</p></li>
+</ul>
+</div></blockquote>
+<ol class="arabic simple" start="2">
+<li><p><strong>Prova un tag diverso:</strong>
+- Prova con più tag per escludere un tag difettoso</p></li>
+<li><p><strong>Controlla il tipo di tag:</strong>
+- Verifica che il tipo di tag sia supportato dal tuo lettore
+- Alcuni lettori hanno compatibilità limitata con certi tipi di tag</p></li>
+<li><p><strong>Modifica le impostazioni:</strong>
+- Aumenta il timeout di lettura nelle impostazioni dell’applicazione
+- Prova diverse modalità di lettura se disponibili</p></li>
+</ol>
+</section>
+</section>
+<section id="problemi-di-scrittura">
+<h2>Problemi di Scrittura<a class="headerlink" href="#problemi-di-scrittura" title="Link to this heading"></a></h2>
+<section id="impossibile-scrivere-sul-tag">
+<h3>Impossibile Scrivere sul Tag<a class="headerlink" href="#impossibile-scrivere-sul-tag" title="Link to this heading"></a></h3>
+<p><strong>Sintomi:</strong>
+- L’operazione di scrittura fallisce con un errore
+- I dati non vengono salvati sul tag</p>
+<p><strong>Soluzioni:</strong>
+1. <strong>Controlla la protezione in scrittura:</strong></p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Alcuni tag hanno una protezione di scrittura che può essere bloccata</p></li>
+<li><p>Verifica se il tag è di sola lettura</p></li>
+</ul>
+</div></blockquote>
+<ol class="arabic simple" start="2">
+<li><p><strong>Verifica la capacità del tag:</strong>
+- Assicurati che i dati che stai cercando di scrivere rientrino nella capacità del tag
+- Alcuni tag hanno layout di memoria specifici e aree riservate</p></li>
+<li><p><strong>Problemi di formattazione:</strong>
+- Prova a formattare il tag prima di scrivere
+- Alcuni tag richiedono una formattazione specifica per certi tipi di dati</p></li>
+<li><p><strong>Stato del tag:</strong>
+- Il tag potrebbe essere danneggiato o usurato
+- Prova con un tag diverso</p></li>
+</ol>
+</section>
+</section>
+<section id="problemi-dell-applicazione">
+<h2>Problemi dell’Applicazione<a class="headerlink" href="#problemi-dell-applicazione" title="Link to this heading"></a></h2>
+<section id="arresti-improvvisi">
+<h3>Arresti Improvvisi<a class="headerlink" href="#arresti-improvvisi" title="Link to this heading"></a></h3>
+<p><strong>Sintomi:</strong>
+- L’applicazione si chiude inaspettatamente
+- Appaiono messaggi di errore prima della chiusura</p>
+<p><strong>Soluzioni:</strong>
+1. <strong>Controlla i log:</strong></p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Cerca i log di errore nella directory dei log dell’applicazione</p></li>
+<li><p>Su Windows: <cite>%APPDATA%NFC Reader Writerlogs</cite></p></li>
+<li><p>Su Linux: <cite>~/.local/share/NFC Reader Writer/logs</cite></p></li>
+</ul>
+</div></blockquote>
+<ol class="arabic simple" start="2">
+<li><p><strong>Aggiorna l’applicazione:</strong>
+- Assicurati di utilizzare l’ultima versione
+- Controlla gli aggiornamenti nel menu Aiuto</p></li>
+<li><p><strong>Reimposta le impostazioni:</strong>
+- Prova a ripristinare le impostazioni predefinite dell’applicazione
+- Elimina il file di configurazione (eseguendo prima un backup se necessario)</p></li>
+<li><p><strong>Verifica i requisiti di sistema:</strong>
+- Assicurati che il tuo sistema soddisfi i requisiti minimi
+- Aggiorna il sistema operativo e i driver</p></li>
+</ol>
+</section>
+</section>
+<section id="problemi-di-prestazioni">
+<h2>Problemi di Prestazioni<a class="headerlink" href="#problemi-di-prestazioni" title="Link to this heading"></a></h2>
+<section id="lettura-scrittura-lenta">
+<h3>Lettura/Scrittura Lenta<a class="headerlink" href="#lettura-scrittura-lenta" title="Link to this heading"></a></h3>
+<p><strong>Sintomi:</strong>
+- Le operazioni richiedono più tempo del previsto
+- L’applicazione diventa non reattiva durante le operazioni</p>
+<p><strong>Ottimizzazioni:</strong>
+1. <strong>Chiudi altre applicazioni:</strong></p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Altre applicazioni potrebbero utilizzare le risorse di sistema</p></li>
+<li><p>Chiudi i programmi non necessari</p></li>
+</ul>
+</div></blockquote>
+<ol class="arabic simple" start="2">
+<li><p><strong>Modifica le impostazioni:</strong>
+- Riduci il numero di tentativi di lettura/scrittura
+- Aumenta i timeout se stai riscontrando problemi di timeout</p></li>
+<li><p><strong>Controlla le interferenze:</strong>
+- Allontanati da fonti di interferenza elettromagnetica
+- Prova in una posizione diversa</p></li>
+<li><p><strong>Aggiorna il firmware:</strong>
+- Verifica se è disponibile un aggiornamento del firmware per il tuo lettore NFC
+- Aggiorna il firmware del lettore se disponibile</p></li>
+</ol>
+</section>
+</section>
+<section id="messaggi-di-errore-comuni">
+<h2>Messaggi di Errore Comuni<a class="headerlink" href="#messaggi-di-errore-comuni" title="Link to this heading"></a></h2>
+<section id="lettore-non-trovato">
+<h3>«Lettore Non Trovato»<a class="headerlink" href="#lettore-non-trovato" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>Verifica che il lettore sia correttamente connesso</p></li>
+<li><p>Controlla se il lettore è supportato dall’applicazione</p></li>
+<li><p>Prova a reinstallare i driver del lettore</p></li>
+</ul>
+</section>
+<section id="tag-non-supportato">
+<h3>«Tag Non Supportato»<a class="headerlink" href="#tag-non-supportato" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>Controlla se il tipo di tag è supportato</p></li>
+<li><p>Prova un tag diverso</p></li>
+<li><p>Alcuni tag potrebbero richiedere configurazioni specifiche</p></li>
+</ul>
+</section>
+<section id="memoria-insufficiente">
+<h3>«Memoria Insufficiente»<a class="headerlink" href="#memoria-insufficiente" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>Il tag non ha abbastanza spazio per l’operazione</p></li>
+<li><p>Riduci la quantità di dati che stai cercando di scrivere</p></li>
+<li><p>Usa un tag con capacità maggiore</p></li>
+</ul>
+</section>
+</section>
+<section id="come-ottenere-aiuto">
+<h2>Come Ottenere Aiuto<a class="headerlink" href="#come-ottenere-aiuto" title="Link to this heading"></a></h2>
+<p>Se stai ancora riscontrando problemi:</p>
+<ol class="arabic simple">
+<li><p><strong>Consulta la sezione</strong> <a class="reference internal" href="faq.html#domande-frequenti"><span class="std std-ref">Domande Frequenti</span></a> per ulteriori soluzioni</p></li>
+<li><p><strong>Cerca nella documentazione</strong> per argomenti specifici</p></li>
+<li><p><strong>Segnala il problema</strong> sulla nostra <a class="reference external" href="https://github.com/Nsfr750/NFC/issues">pagina delle issue di GitHub</a>
+- Includi il messaggio di errore
+- Descrivi cosa stavi facendo quando si è verificato il problema
+- Allega i file di log rilevanti</p></li>
+</ol>
+<p>Per ulteriore supporto, puoi anche visitare il nostro <cite>server Discord &lt;https://discord.gg/ryqNeuRYjD&gt;</cite>.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Piè di pagina">
+        <a href="faq.html" class="btn btn-neutral float-left" title="Domande Frequenti" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Precedente</a>
+        <a href="contributing.html" class="btn btn-neutral float-right" title="Contribuire a Lettore/Scrittore NFC" accesskey="n" rel="next">Prossimo <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Nsfr750.</p>
+  </div>
+
+  Realizzato con <a href="https://www.sphinx-doc.org/">Sphinx</a> usando un
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">tema</a>
+    fornito da <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

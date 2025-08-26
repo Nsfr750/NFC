@@ -24,17 +24,21 @@ A powerful PySide6-based application for reading from and writing to various typ
   - Format tags for NDEF usage
 
 - **User Interface**:
-  - Modern, responsive design
+  - Modern, responsive design with sphinx_rtd_theme
   - Light/Dark/System theme support
   - Real-time tag detection and status updates
   - Detailed tag information panel
   - Log viewer with filtering options
+  - Comprehensive documentation in English and Italian
 
 - **Advanced Features**:
   - Tag emulation mode (experimental)
   - Batch operations for processing multiple tags
   - Custom command execution
   - Logging system with multiple verbosity levels
+  - API documentation for developers
+  - Troubleshooting guide for common issues
+  - Contributing guidelines for open-source collaboration
 
 ## 🚀 Requirements
 
@@ -45,6 +49,33 @@ A powerful PySide6-based application for reading from and writing to various typ
   - PC/SC compatible readers
 - Windows 10/11 or Linux with PC/SC support
 - Required Python packages (see `requirements.txt`)
+
+## 📖 Documentation
+
+Comprehensive documentation is available in both English and Italian, including:
+
+- User Guide
+- API Reference
+- Troubleshooting Guide
+- FAQ
+- Contributing Guidelines
+
+To build the documentation locally:
+
+```bash
+# Install documentation requirements
+pip install -r requirements-docs.txt
+
+# Build English documentation
+cd docs/ENG
+make html
+
+# Build Italian documentation
+cd ../ITA
+make html
+```
+
+The documentation will be available in the `_build/html` directory of each language folder.
 
 ## 📦 Installation
 
@@ -58,10 +89,13 @@ A powerful PySide6-based application for reading from and writing to various typ
 2. Create and activate a virtual environment (recommended):
 
    ```bash
+   # Windows
    python -m venv venv
-   .\venv\Scripts\activate  # Windows
-   # or
-   source venv/bin/activate  # Linux/Mac
+   .\venv\Scripts\activate
+
+   # Linux/macOS
+   python3 -m venv venv
+   source venv/bin/activate
    ```
 
 3. Install the required packages:
@@ -215,6 +249,6 @@ See [CHANGELOG.md](CHANGELOG.md) for a list of changes in each version.
 
 Check out our [TO_DO.md](TO_DO.md) file for planned features and known issues.
 
-## ❓ Support
+## 📞 Contact
 
-For support, please [open an issue on GitHub](https://github.com/Nsfr750/NFC/issues) or contact me directly at nsfr750@yandex.com
+For support, feature requests, or questions, please open an issue on [GitHub](https://github.com/Nsfr750/NFC/issues) or join our [Discord server](https://discord.gg/ryqNeuRYjD).
