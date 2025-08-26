@@ -182,3 +182,4 @@ cython_debug/
 TXT.md
 version.txt
 py-build.py
+file_version_info.txt
