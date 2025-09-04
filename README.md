@@ -12,7 +12,7 @@ A powerful PySide6-based application for reading from and writing to various typ
 
 - Python 3.9 or higher
 - NFC reader hardware (ACR122U, ACR1252U, etc.)
-- Required system libraries (see [PREREQUISITES.md](PREREQUISITES.md))
+- Required system libraries (see [PREREQUISITES.md](docs/PREREQUISITES.md))
 
 ### Quick Start
 
@@ -43,7 +43,7 @@ A powerful PySide6-based application for reading from and writing to various typ
    python main.py
    ```
 
-For detailed installation instructions, see [PREREQUISITES.md](PREREQUISITES.md).
+For detailed installation instructions, see [PREREQUISITES.md](docs/PREREQUISITES.md).
 
 ## Features
 
@@ -127,7 +127,7 @@ cd ../ITA
 make html
 ```
 
-The documentation will be available in the `_build/html` directory of each language folder.
+The documentation will be available in the docs/ directory oe in the [WIKI](https://github.com/Nsfr750/NFC/wiki) pages.
 
 ## 📦 Installation
 
@@ -246,7 +246,7 @@ Contributions are welcome! Here's how you can help:
 4. Improve documentation
 5. Share your feedback and ideas
 
-Please read our [Contributing Guidelines](CONTRIBUTING.md) for details on how to contribute to this project.
+Please read our [Contributing Guidelines](docs/CONTRIBUTING.md) for details on how to contribute to this project.
 
 ## 📝 License
 
@@ -255,7 +255,7 @@ This project is licensed under the [GPL-3.0 License](LICENSE).
 ## 👤 Author
 
 - **Nsfr750**
-  - Email: [nsfr750@yandex.com](mailto:nsfr750@yandex.com)
+  - Email: [Nsfr750](mailto:nsfr750@yandex.com)
   - GitHub: [@Nsfr750](https://github.com/Nsfr750)
   - Discord: [Join our community](https://discord.gg/ryqNeuRYjD)
 
