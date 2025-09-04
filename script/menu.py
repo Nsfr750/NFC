@@ -195,12 +195,25 @@ class AppMenu:
         # Add separator
         help_menu.addSeparator()
         
+        # Wiki action
+        wiki_action = QtGui.QAction("&WIKI", self.parent)
+        wiki_action.triggered.connect(self.open_wiki)
+        help_menu.addAction(wiki_action)
+        
+        # Add separator
+        help_menu.addSeparator()
+        
         # About action
         about_action = QtGui.QAction("&About", self.parent)
         about_action.triggered.connect(self.show_about)
         help_menu.addAction(about_action)
     
     @Slot()
+    def open_wiki(self):
+        """Open the GitHub wiki page in the default web browser."""
+        import webbrowser
+        webbrowser.open("https://github.com/Nsfr750/NFC/wiki")
+    
     def toggle_read_write_mode(self, checked):
         """Toggle between read and write modes."""
         if checked:

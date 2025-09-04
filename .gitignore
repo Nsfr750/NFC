@@ -183,3 +183,7 @@ TXT.md
 version.txt
 py-build.py
 file_version_info.txt
+pyproject.toml
+publish_to_pypi.py
+setup.py
+installer.nsi
