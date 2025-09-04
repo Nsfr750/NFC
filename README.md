@@ -127,7 +127,7 @@ cd ../ITA
 make html
 ```
 
-The documentation will be available in the docs/ directory oe in the [WIKI](https://github.com/Nsfr750/NFC/wiki) pages.
+The documentation are available in the docs/ folder or in the [WIKI](https://github.com/Nsfr750/NFC/wiki) pages.
 
 ## 📦 Installation
 
