@@ -79,12 +79,7 @@ class AppMenu:
         tag_db_action = QtGui.QAction("Tag &Database...", self.parent)
         tag_db_action.triggered.connect(self.show_tag_database)
         tools_menu.addAction(tag_db_action)
-        
-        # Tag Cloner action
-        tag_cloner_action = QtGui.QAction("Tag &Cloner...", self.parent)
-        tag_cloner_action.triggered.connect(self.show_tag_cloner)
-        tools_menu.addAction(tag_cloner_action)
-        
+               
         # Add separator
         tools_menu.addSeparator()
         
