@@ -831,7 +831,29 @@ class NFCThread(QThread):
             return False, "Tag does not support formatting"
         except Exception as e:
             return False, f"Error formatting tag: {str(e)}"
-
+    
+    def set_reader_type(self, reader_type, reader_config=None):
+        """Set the reader type and configuration for NFC operations.
+        
+        Args:
+            reader_type (str): Type of reader (e.g., 'Auto-Detect', 'USB', 'PC/SC', 'UART')
+            reader_config (dict, optional): Configuration for the specific reader type
+        """
+        self.reader_type = reader_type
+        self.reader_config = reader_config or {}
+        self.logger.info(f"Reader type set to: {reader_type}")
+        if reader_config:
+            self.logger.info(f"Reader configuration: {reader_config}")
+    
+    def set_selected_port(self, port):
+        """Set the selected port for NFC operations.
+        
+        Args:
+            port (str): Port identifier (e.g., 'COM3', '/dev/ttyUSB0')
+        """
+        self.selected_port = port
+        self.logger.info(f"Selected port set to: {port}")
+    
 class NFCApp(QMainWindow):
     """Main application window for NFC Reader/Writer."""
     
@@ -1713,8 +1735,7 @@ def main():
     app.setOrganizationDomain("github.com/Nsfr750")
     
     # Enable high DPI scaling - use modern attributes
-    app.setAttribute(Qt.ApplicationAttribute.AA_EnableHighDpiScaling, True)
-    app.setAttribute(Qt.ApplicationAttribute.AA_UseHighDpiPixmaps, True)
+    app.setAttribute(Qt.ApplicationAttribute.HighDpiScaleFactorRoundingPolicy, Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
     
     # Set modern style for better appearance
     app.setStyle('Fusion')
@@ -1727,8 +1748,8 @@ def main():
     window.log(f"{APP_NAME} v{__version__} started")
     window.log(f"Copyright {AUTHOR} - {LICENSE}")
     
-    # Start the NFC reader thread
-    window.nfc_thread.start()
+    # NFC thread will be started when user connects a device through the device panel
+    # Removed automatic startup to prevent automatic reader detection on startup
     
     sys.exit(app.exec())
 
