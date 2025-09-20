@@ -129,13 +129,27 @@ class NFCThread(QThread):
         except ImportError:
             issues.append("pyserial not installed - run: pip install pyserial")
         
-        # Check for libusb on Windows (fallback for USB backend) - OPTIONAL
+        # Check for usbx on Windows (fallback for USB backend) - OPTIONAL
         if platform.system() == 'Windows':
             try:
-                import ctypes
-                libusb = ctypes.CDLL('libusb-1.0.dll')
-            except:
-                warnings.append("libusb not found - USB backend may not work (install from https://libusb.info/)")
+                import usb.core
+                import usb.backend
+                import usb.backend.libusb1
+                
+                # Test if usbx can find USB devices with proper backend
+                backend = usb.backend.libusb1.get_backend()
+                if backend:
+                    devices = usb.core.find(find_all=True, backend=backend)
+                    warnings.append("usbx available with libusb backend - USB backend should work")
+                else:
+                    warnings.append("usbx available but no libusb backend found - install libusb drivers")
+            except ImportError:
+                warnings.append("usbx not installed - run: pip install usbx")
+            except Exception as e:
+                if "No backend available" in str(e):
+                    warnings.append("usbx available but libusb backend missing - install libusb from https://libusb.info/")
+                else:
+                    warnings.append(f"usbx available but USB access may be restricted: {str(e)}")
         
         # Check for PC/SC on Windows (fallback for PC/SC backend) - OPTIONAL
         if platform.system() == 'Windows':
@@ -177,6 +191,94 @@ class NFCThread(QThread):
         
         return backends
     
+    def _get_usb_devices_with_usbx(self):
+        """Get USB devices using usbx for better device identification."""
+        try:
+            import usb.core
+            import usb.backend
+            import usb.backend.libusb1
+            
+            # Try to initialize USB backend with the same logic as the test script
+            backend = None
+            try:
+                # Try to find libusb backend with specific path first
+                backend = usb.backend.libusb1.get_backend(find_library=lambda x: "C:\\windows\\system32\\libusb-1.0.dll")
+                if backend is None:
+                    print("libusb backend not found, trying default backend")
+                    backend = usb.backend.libusb1.get_backend()
+                
+                if backend is None:
+                    self.logger.warning("No USB backend available - usbx cannot access USB devices")
+                    return []
+                    
+            except Exception as e:
+                self.logger.warning(f"Failed to initialize USB backend: {str(e)}")
+                return []
+            
+            # Known NFC reader vendor IDs and product IDs
+            nfc_readers = {
+                (0x072F, 0x2200): "ACS ACR122U NFC Reader",
+                (0x072F, 0x90CC): "ACS ACR1222L NFC Reader", 
+                (0x054C, 0x06C3): "Sony RC-S380/P NFC Reader",
+                (0x054C, 0x06C1): "Sony RC-S380 NFC Reader",
+                (0x165C, 0x0011): "PN532 NFC Controller",
+                (0x2341, 0x0043): "Arduino-based PN532",
+                (0x2341, 0x0001): "Arduino-based PN532",
+                (0x0403, 0x6001): "FTDI-based NFC Reader",
+                (0x1A86, 0x7523): "CH340-based NFC Reader",
+                (0x2708, 0x0003): "NS106 Dual Frequency RFID/NFC Reader",  # Added based on test
+            }
+            
+            devices = usb.core.find(find_all=True, backend=backend)
+            usb_devices = []
+            
+            for device in devices:
+                device_info = {
+                    'vendor_id': device.idVendor,
+                    'product_id': device.idProduct,
+                    'vendor_name': '',
+                    'product_name': '',
+                    'serial_number': '',
+                    'is_nfc_reader': False,
+                    'description': ''
+                }
+                
+                # Get device strings
+                try:
+                    if hasattr(device, 'manufacturer') and device.manufacturer:
+                        device_info['vendor_name'] = device.manufacturer.decode('utf-8', errors='ignore')
+                    if hasattr(device, 'product') and device.product:
+                        device_info['product_name'] = device.product.decode('utf-8', errors='ignore')
+                    if hasattr(device, 'serial_number') and device.serial_number:
+                        device_info['serial_number'] = device.serial_number.decode('utf-8', errors='ignore')
+                except:
+                    pass
+                
+                # Check if this is a known NFC reader
+                vid_pid = (device.idVendor, device.idProduct)
+                if vid_pid in nfc_readers:
+                    device_info['is_nfc_reader'] = True
+                    device_info['description'] = nfc_readers[vid_pid]
+                else:
+                    # Check product name for NFC-related terms
+                    product_lower = device_info['product_name'].lower()
+                    vendor_lower = device_info['vendor_name'].lower()
+                    
+                    nfc_terms = ['nfc', 'rfid', 'smart card', 'contactless', 'proximity', 'reader']
+                    if any(term in product_lower for term in nfc_terms) or any(term in vendor_lower for term in nfc_terms):
+                        device_info['is_nfc_reader'] = True
+                        device_info['description'] = f"{device_info['vendor_name']} {device_info['product_name']}"
+                
+                usb_devices.append(device_info)
+            
+            return usb_devices
+            
+        except ImportError:
+            return []  # usbx not available
+        except Exception as e:
+            self.logger.warning(f"Error detecting USB devices with usbx: {str(e)}")
+            return []
+    
     def _get_reader_status(self):
         """Check if NFC reader is properly connected with enhanced diagnostics."""
         try:
@@ -207,6 +309,22 @@ class NFCThread(QThread):
                     "• Check device permissions (Linux)"
                 )
             
+            # Check for USB devices using usbx (enhanced detection)
+            usb_devices = self._get_usb_devices_with_usbx()
+            nfc_usb_devices = [device for device in usb_devices if device['is_nfc_reader']]
+            
+            if nfc_usb_devices:
+                # Found NFC readers via usbx
+                nfc_descriptions = [device['description'] for device in nfc_usb_devices]
+                self.logger.info(f"Found NFC readers via usbx: {', '.join(nfc_descriptions)}")
+                return None  # Success - readers found
+            else:
+                # If usbx didn't find readers, check if usbx backend is available
+                if not usb_devices:
+                    self.logger.warning("usbx backend not available - falling back to serial detection")
+                else:
+                    self.logger.info("usbx available but no NFC readers found - checking serial devices")
+            
             # Check for serial devices using pyserial
             try:
                 import serial.tools.list_ports
@@ -235,7 +353,8 @@ class NFCThread(QThread):
                     'nfc', 'rfid', 'smart card', 'acr', 'pn532', 'rc-s380',
                     'reader', 'contactless', 'proximity', 'identification',
                     'dispositivo seriale', 'serial usb', 'usb serial', 'ch340',
-                    'ftdi', 'cp2102', 'pl2303', 'pn532', 'rc522', 'mfrc522'
+                    'ftdi', 'cp2102', 'pl2303', 'pn532', 'rc522', 'mfrc522',
+                    'ns106', 'kadongli', 'dual frequency'  # Added NS106 specific patterns
                 ]
                 
                 found_readers = []
@@ -278,7 +397,8 @@ class NFCThread(QThread):
                                 (0x10c4, 0xea60): "Silicon Labs CP2102",
                                 (0x067b, 0x2303): "Prolific PL2303",
                                 (0x165c, 0x0011): "PN532 NFC controller",
-                                (0x072f, 0x2200): "NS106 Dual Frequency RFID/NFC Reader",
+                                (0x2708, 0x0003): "NS106 Dual Frequency RFID/NFC Reader",  # Added from test
+                                (0x072f, 0x2200): "ACS ACR122U NFC Reader",
                                 (0x072f, 0x90cc): "ACS ACR1222L NFC Reader",
                                 (0x054c, 0x06c3): "Sony RC-S380 NFC reader",
                             }
@@ -745,82 +865,6 @@ class NFCThread(QThread):
             error_msg = f"Error locking tag: {str(e)}"
             self.logger.error(error_msg, exc_info=True)
             return False, error_msg
-    
-    def write_tag(self, tag, tag_info):
-        """Write data to an NFC tag with verification and locking support."""
-        try:
-            # Check if tag is locked
-            if self._is_tag_locked(tag):
-                raise Exception("Cannot write to a locked tag")
-                
-            if not tag.ndef:
-                if hasattr(tag, 'format'):
-                    tag.format()
-                    tag_info['formatted'] = True
-                else:
-                    raise Exception("Tag is not NDEF formattable")
-            
-            # Parse the write data to determine record type
-            if isinstance(self.write_data, dict):
-                # Handle structured write data
-                if self.write_data.get('type') == 'text':
-                    record = ndef.TextRecord(
-                        self.write_data.get('text', ''),
-                        self.write_data.get('language', 'en'),
-                        self.write_data.get('encoding', 'utf-8')
-                    )
-                elif self.write_data.get('type') == 'uri':
-                    record = ndef.UriRecord(self.write_data.get('uri', ''))
-                elif self.write_data.get('type') == 'mime':
-                    record = ndef.MimeRecord(
-                        self.write_data.get('mime_type', 'text/plain'),
-                        self.write_data.get('data', b'').encode('utf-8')
-                    )
-                else:
-                    # Default to text record
-                    record = ndef.TextRecord(str(self.write_data))
-            else:
-                # Fallback to simple text record
-                record = ndef.TextRecord(str(self.write_data))
-            
-            # Write the record
-            tag.ndef.records = [record]
-            
-            # Verify write
-            if tag.ndef.records:
-                if hasattr(record, 'text'):
-                    verify_data = tag.ndef.records[0].text
-                    expected_data = record.text
-                elif hasattr(record, 'uri'):
-                    verify_data = tag.ndef.records[0].uri
-                    expected_data = record.uri
-                else:
-                    verify_data = tag.ndef.records[0].data
-                    expected_data = record.data
-                
-                if verify_data != expected_data:
-                    raise Exception("Failed to verify written data")
-            
-            # Update tag info with the written record
-            record_info = self._parse_ndef_record(record)
-            record_info['id'] = 'written_record'
-            tag_info['records'].append(record_info)
-            
-            # Handle locking if requested
-            if hasattr(self, 'lock_after_write') and self.lock_after_write:
-                success, msg = self.lock_tag(tag, permanent=self.permanent_lock)
-                if success:
-                    tag_info['locked'] = True
-                    self.logger.info(f"Tag locked after write: {msg}")
-                else:
-                    self.logger.warning(f"Failed to lock tag after write: {msg}")
-            
-            self.tag_detected.emit(tag_info)
-            self.logger.info(f"Successfully wrote to tag: {tag_info['id']}")
-            
-        except Exception as e:
-            self.logger.error(f"Error writing to tag: {str(e)}", exc_info=True)
-            raise
     
     def format_tag(self, tag):
         """Format the tag (if supported)."""
@@ -1425,40 +1469,43 @@ class NFCApp(QMainWindow):
         
     def apply_theme(self, theme_name):
         """Apply the selected theme to the application."""
-        # This is a basic implementation. You might want to use a stylesheet or a proper theming system.
-        if theme_name == "Dark":
-            self.setStyleSheet("""
-                QMainWindow, QDialog {
-                    background-color: #2d2d2d;
-                    color: #e0e0e0;
-                }
-                QTextEdit, QLineEdit, QComboBox, QSpinBox, QListWidget, QTableWidget {
-                    background-color: #3d3d3d;
-                    color: #e0e0e0;
-                    border: 1px solid #555;
-                }
-                QMenuBar, QToolBar {
-                    background-color: #3d3d3d;
-                    color: #e0e0e0;
-                }
-                QMenuBar::item:selected, QToolBar::item:selected {
-                    background-color: #555;
-                }
-            """)
-        elif theme_name == "Light":
-            self.setStyleSheet("""
-                QMainWindow, QDialog, QWidget {
-                    background-color: #f0f0f0;
-                    color: #000000;
-                }
-                QTextEdit, QLineEdit, QComboBox, QSpinBox, QListWidget, QTableWidget {
-                    background-color: #ffffff;
-                    color: #000000;
-                    border: 1px solid #ccc;
-                }
-            """)
-        else:  # System or default
-            self.setStyleSheet("")  # Reset to system style
+        try:
+            if theme_name == "Dark":
+                self.setStyleSheet("""
+                    QMainWindow, QDialog {
+                        background-color: #2d2d2d;
+                        color: #e0e0e0;
+                    }
+                    QTextEdit, QLineEdit, QComboBox, QSpinBox, QListWidget, QTableWidget {
+                        background-color: #3d3d3d;
+                        color: #e0e0e0;
+                        border: 1px solid #555;
+                    }
+                    QMenuBar, QToolBar {
+                        background-color: #3d3d3d;
+                        color: #e0e0e0;
+                    }
+                    QMenuBar::item:selected, QToolBar::item:selected {
+                        background-color: #555;
+                    }
+                """)
+            elif theme_name == "Light":
+                self.setStyleSheet("""
+                    QMainWindow, QDialog, QWidget {
+                        background-color: #f0f0f0;
+                        color: #000000;
+                    }
+                    QTextEdit, QLineEdit, QComboBox, QSpinBox, QListWidget, QTableWidget {
+                        background-color: #ffffff;
+                        color: #000000;
+                        border: 1px solid #ccc;
+                    }
+                """)
+            else:  # System or default
+                self.setStyleSheet("")  # Reset to system style
+                
+        except Exception as e:
+            self.log(f"Error applying theme: {str(e)}", level="ERROR")
     
     def clear_log(self):
         """Clear the log display."""
@@ -1734,8 +1781,14 @@ def main():
     app.setOrganizationName("Nsfr750")
     app.setOrganizationDomain("github.com/Nsfr750")
     
-    # Enable high DPI scaling - use modern attributes
-    app.setAttribute(Qt.ApplicationAttribute.HighDpiScaleFactorRoundingPolicy, Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
+    # Enable high DPI scaling - use compatible approach for different PySide6 versions
+    try:
+        # Try modern approach first (PySide6 6.5.0+)
+        app.setAttribute(Qt.ApplicationAttribute.HighDpiScaleFactorRoundingPolicy, Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
+    except AttributeError:
+        # Fallback to deprecated attributes for older PySide6 versions
+        app.setAttribute(Qt.ApplicationAttribute.AA_EnableHighDpiScaling, True)
+        app.setAttribute(Qt.ApplicationAttribute.AA_UseHighDpiPixmaps, True)
     
     # Set modern style for better appearance
     app.setStyle('Fusion')
