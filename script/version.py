@@ -10,7 +10,7 @@ MAJOR = 1
 MINOR = 1
 
 #: Patch version number (backwards-compatible bug fixes)
-PATCH = 0
+PATCH = 1
 
 #: Pre-release version identifier (e.g., 'alpha', 'beta', 'rc.1')
 #: Set to None for final releases

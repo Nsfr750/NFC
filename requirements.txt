@@ -4,10 +4,12 @@ nfcpy>=1.0.4
 ndeflib>=0.3.1
 pyserial>=3.5
 pyudev>=0.22
+Wand>=0.6.0
+
+# Optional USB/PC/SC Support (for advanced backends)
 pyusb>=1.2.1
 pywinusb>=0.4.2; sys_platform == 'win32'
 pywin32>=306; sys_platform == 'win32'
-Wand>=0.6.0
 libusb>=1.0.27.post4
 
 # Database

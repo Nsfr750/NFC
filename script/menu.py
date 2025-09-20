@@ -79,6 +79,11 @@ class AppMenu:
         tag_db_action = QtGui.QAction("Tag &Database...", self.parent)
         tag_db_action.triggered.connect(self.show_tag_database)
         tools_menu.addAction(tag_db_action)
+        
+        # NFC Diagnostics action
+        diagnostics_action = QtGui.QAction("NFC &Diagnostics...", self.parent)
+        diagnostics_action.triggered.connect(self.run_diagnostics)
+        tools_menu.addAction(diagnostics_action)
                
         # Add separator
         tools_menu.addSeparator()
@@ -394,3 +399,7 @@ class AppMenu:
             self.parent.show_error("Error", f"Failed to import emulation dialog: {str(e)}")
         except Exception as e:
             self.parent.show_error("Error", f"Failed to start tag emulation: {str(e)}")
+
+    def run_diagnostics(self):
+        """Run NFC diagnostics."""
+        self.parent.run_diagnostics()

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 NFC Reader/Writer Application
-Copyright © 2025 Nsfr750
+Copyright 2025 Nsfr750
 """
 
 import sys
@@ -97,6 +97,9 @@ class NFCThread(QThread):
         self.read_mode = True
         self.clf = None
         self.current_tag = None
+        self.reader_type = None
+        self.reader_config = None
+        self.selected_port = None
         self._init_logging()
     
     def _init_logging(self):
@@ -115,102 +118,372 @@ class NFCThread(QThread):
                 logging.error(f"Error closing NFC reader: {str(e)}")
         self.wait(2000)  # Wait up to 2 seconds for thread to finish
         
-    def _get_reader_status(self):
-        """Check if NFC reader is properly connected."""
+    def _check_system_dependencies(self):
+        """Check if required system dependencies are available."""
+        issues = []
+        warnings = []
+        
+        # Check for pyserial (primary detection method) - REQUIRED
         try:
-            import usb.core
-            import usb.util
+            import serial.tools.list_ports
+        except ImportError:
+            issues.append("pyserial not installed - run: pip install pyserial")
+        
+        # Check for libusb on Windows (fallback for USB backend) - OPTIONAL
+        if platform.system() == 'Windows':
+            try:
+                import ctypes
+                libusb = ctypes.CDLL('libusb-1.0.dll')
+            except:
+                warnings.append("libusb not found - USB backend may not work (install from https://libusb.info/)")
+        
+        # Check for PC/SC on Windows (fallback for PC/SC backend) - OPTIONAL
+        if platform.system() == 'Windows':
+            try:
+                import ctypes
+                winscard = ctypes.CDLL('winscard.dll')
+            except:
+                warnings.append("PC/SC not available - PC/SC backend may not work (install PC/SC drivers)")
+        
+        return issues, warnings
+    
+    def _get_available_backends(self):
+        """Get list of available NFC backends."""
+        backends = []
+        
+        # Test USB backend
+        try:
+            clf = nfc.ContactlessFrontend()
+            backends.append('usb')
+            clf.close()
+        except:
+            pass
+        
+        # Test PC/SC backend
+        try:
+            clf = nfc.ContactlessFrontend('pcsc')
+            backends.append('pcsc')
+            clf.close()
+        except:
+            pass
+        
+        # Test UART backend (for serial readers)
+        try:
+            clf = nfc.ContactlessFrontend('uart')
+            backends.append('uart')
+            clf.close()
+        except:
+            pass
+        
+        return backends
+    
+    def _get_reader_status(self):
+        """Check if NFC reader is properly connected with enhanced diagnostics."""
+        try:
+            # First check system dependencies
+            dependency_issues, warnings = self._check_system_dependencies()
             
-            # Check for common NFC reader vendor/product IDs
-            NFC_READERS = {
-                (0x054c, 0x06c3): 'Sony RC-S380',  # ACR122U
-                (0x072f, 0x2200): 'ACS ACR122U',
-                (0x1a86, 0x55e4): 'ACS ACR1252U',
-                (0x04e6, 0x5591): 'Sony PaSoRi RC-S380',
-                (0x04cc, 0x2533): 'NXP PN533',
-            }
-            
-            # Check for connected USB devices
-            devices = usb.core.find(find_all=True)
-            found_readers = [
-                f"{name} (PID: 0x{pid:04x}, VID: 0x{vid:04x})"
-                for (vid, pid), name in NFC_READERS.items()
-                if usb.core.find(idVendor=vid, idProduct=pid) is not None
-            ]
-            
-            if not found_readers:
+            # Only fail on required dependencies (pyserial)
+            if dependency_issues:
                 return (
-                    "No supported NFC reader detected.\n\n"
-                    "Common solutions:\n"
-                    "1. Ensure your NFC reader is properly connected\n"
-                    "2. Check if the device is recognized by your OS\n"
-                    "3. Install required drivers if needed\n"
-                    "4. Try a different USB port"
+                    "System dependencies missing:\n\n"
+                    + "\n".join(f"• {issue}" for issue in dependency_issues)
+                    + "\n\nPlease install the missing dependencies and restart the application."
                 )
             
-            return None
+            # Check for available backends
+            available_backends = self._get_available_backends()
+            if not available_backends:
+                return (
+                    "No NFC backends available.\n\n"
+                    "This typically means:\n"
+                    "1. pyserial is not installed or not working\n"
+                    "2. NFC reader drivers are not installed\n"
+                    "3. Insufficient permissions to access serial devices\n\n"
+                    "Solutions:\n"
+                    "• Install pyserial: pip install pyserial\n"
+                    "• Install drivers for your NFC reader\n"
+                    "• Run as administrator (Windows)\n"
+                    "• Check device permissions (Linux)"
+                )
             
-        except ImportError:
-            return "Could not check USB devices. PyUSB may not be installed."
+            # Check for serial devices using pyserial
+            try:
+                import serial.tools.list_ports
+                ports = serial.tools.list_ports.comports()
+                
+                if not ports:
+                    status_msg = (
+                        f"No serial devices detected.\n\n"
+                        f"Available backends: {', '.join(available_backends)}\n\n"
+                        f"Common solutions:\n"
+                        f"1. Ensure your NFC reader is properly connected\n"
+                        f"2. Check if the device is recognized by your OS\n"
+                        f"3. Install required drivers if needed\n"
+                        f"4. Try a different USB port\n"
+                        f"5. Check device manager (Windows) or dmesg (Linux)"
+                    )
+                    
+                    # Add warnings if any
+                    if warnings:
+                        status_msg += f"\n\nWarnings:\n" + "\n".join(f"• {warning}" for warning in warnings)
+                    
+                    return status_msg
+                
+                # Look for NFC readers among serial devices
+                nfc_patterns = [
+                    'nfc', 'rfid', 'smart card', 'acr', 'pn532', 'rc-s380',
+                    'reader', 'contactless', 'proximity', 'identification',
+                    'dispositivo seriale', 'serial usb', 'usb serial', 'ch340',
+                    'ftdi', 'cp2102', 'pl2303', 'pn532', 'rc522', 'mfrc522'
+                ]
+                
+                found_readers = []
+                all_devices = []
+                
+                for port in ports:
+                    combined_text = f"{port.description} {port.product} {port.manufacturer}".lower()
+                    
+                    # Create detailed device info
+                    device_details = []
+                    if port.vid and port.pid:
+                        device_details.append(f"VID: 0x{port.vid:04x}, PID: 0x{port.pid:04x}")
+                    if port.manufacturer:
+                        device_details.append(f"Manufacturer: {port.manufacturer}")
+                    if port.product:
+                        device_details.append(f"Product: {port.product}")
+                    if port.serial_number:
+                        device_details.append(f"Serial: {port.serial_number}")
+                    
+                    details_str = f" ({', '.join(device_details)})" if device_details else ""
+                    
+                    if any(pattern in combined_text for pattern in nfc_patterns):
+                        found_readers.append(
+                            f"{port.description} (Port: {port.device}){details_str}"
+                        )
+                    else:
+                        all_devices.append(
+                            f"{port.description} (Port: {port.device}){details_str}"
+                        )
+                
+                if not found_readers:
+                    # Try to identify the device type based on VID/PID
+                    device_identification = []
+                    for port in ports:
+                        if port.vid and port.pid:
+                            # Common USB-to-serial chip identifiers
+                            known_chips = {
+                                (0x1a86, 0x7523): "CH340 USB-to-Serial",
+                                (0x0403, 0x6001): "FTDI FT232RL",
+                                (0x10c4, 0xea60): "Silicon Labs CP2102",
+                                (0x067b, 0x2303): "Prolific PL2303",
+                                (0x165c, 0x0011): "PN532 NFC controller",
+                                (0x072f, 0x2200): "NS106 Dual Frequency RFID/NFC Reader",
+                                (0x072f, 0x90cc): "ACS ACR1222L NFC Reader",
+                                (0x054c, 0x06c3): "Sony RC-S380 NFC reader",
+                            }
+                            
+                            chip_id = (port.vid, port.pid)
+                            if chip_id in known_chips:
+                                device_identification.append(
+                                    f"{port.device}: {known_chips[chip_id]}"
+                                )
+                    
+                    status_msg = (
+                        f"No NFC readers detected among serial devices.\n\n"
+                        f"Available backends: {', '.join(available_backends)}\n"
+                        f"Found serial devices ({len(ports)} total):\n"
+                        f"\n".join(f"• {device}" for device in all_devices[:5])  # Show first 5
+                        + (f"\n• ... and {len(all_devices)-5} more" if len(all_devices) > 5 else "")
+                    )
+                    
+                    if device_identification:
+                        status_msg += f"\n\nDevice Identification:\n"
+                        for ident in device_identification:
+                            status_msg += f"• {ident}\n"
+                    
+                    status_msg += (
+                        f"\n\nIf your NFC reader is listed above, try connecting to it manually."
+                        f"\n\nTip: Many NFC readers appear as generic USB-Serial devices."
+                        f" Try connecting to the device port directly in the application."
+                    )
+                    
+                    # Add warnings if any
+                    if warnings:
+                        status_msg += f"\n\nWarnings:\n" + "\n".join(f"• {warning}" for warning in warnings)
+                    
+                    return status_msg
+                
+                # If we found readers, return None (success) but log warnings
+                if warnings:
+                    for warning in warnings:
+                        logging.warning(f"Optional dependency warning: {warning}")
+                
+                return None
+                
+            except ImportError:
+                return "pyserial not available - install with: pip install pyserial"
+            except Exception as e:
+                return f"Error checking serial devices: {str(e)}\n\n{traceback.format_exc()}"
+            
+        except ImportError as e:
+            return f"Required libraries not available: {str(e)}\n\nInstall with: pip install pyserial"
         except Exception as e:
-            return f"Error checking USB devices: {str(e)}"
+            return f"Error checking devices: {str(e)}\n\n{traceback.format_exc()}"
     
     def run(self):
-        """Main thread loop for NFC operations."""
+        """Main thread loop for NFC operations with enhanced backend detection."""
         self.running = True
         self.logger.info("NFC thread started")
         
-        try:
-            # Check for common issues before initializing the reader
-            reader_status = self._get_reader_status()
-            if reader_status:
-                self.error_occurred.emit("NFC Reader Not Found", reader_status)
-                return
-                
-            with nfc.ContactlessFrontend('usb') as self.clf:
-                if not self.clf:
-                    self.error_occurred.emit(
-                        "NFC Reader Initialization Failed",
-                        "Failed to initialize the NFC reader.\n\n"
-                        "Possible causes:\n"
-                        "1. The reader is already in use by another application\n"
-                        "2. Insufficient permissions to access the device\n"
-                        "3. The reader is not properly connected\n"
-                        "4. Driver issues - try reconnecting the device"
-                    )
-                    return
-                    
-                self.reader_status.emit("connected")
-                self.logger.info("NFC reader connected")
-                
-                while self.running:
-                    try:
-                        tag = self.clf.connect(
-                            rdwr={
-                                'on-connect': self.on_connect,
-                                'on-discover': self.on_discover,
-                                'on-release': self.on_release,
-                                'beep-on-connect': False,
-                                'targets': ['106A', '106B', '212F', '424F']
-                            },
-                            terminate=lambda: not self.running
-                        )
-                        if tag and self.running:
-                            time.sleep(1)  # Prevent multiple rapid reads
-                    except nfc.clf.CommunicationError as e:
-                        self.logger.warning(f"Communication error: {str(e)}")
-                        time.sleep(0.5)
-                    except Exception as e:
-                        self.logger.error(f"Unexpected error in read loop: {str(e)}", exc_info=True)
-                        self.error_occurred.emit("ERROR", f"Reader error: {str(e)}")
-                        time.sleep(1)
-                        
-        except OSError as e:
-            self.reader_status.emit("disconnected")
-            self.logger.warning(f"Reader disconnected: {str(e)}")
-            self.error_occurred.emit("WARNING", "NFC reader disconnected")
+        # Initialize variables
+        clf = None
+        used_backend = None
         
-        self.logger.info("NFC thread stopped")
+        # Check for common issues before initializing the reader
+        reader_status = self._get_reader_status()
+        if reader_status:
+            self.error_occurred.emit("NFC Reader Not Found", reader_status)
+            return
+        
+        # Determine connection strategy based on reader type and port
+        connection_attempts = []
+        
+        if self.reader_type and self.reader_type != 'Auto-Detect':
+            # Use reader-specific connection strategy
+            if self.reader_config:
+                backend = self.reader_config.get('backend', 'usb')
+                vid_pid_list = self.reader_config.get('vid_pid', [])
+                
+                if backend == 'usb' and self.selected_port:
+                    # Try direct USB connection to selected port
+                    connection_attempts.append(('usb', self.selected_port))
+                elif backend == 'pcsc':
+                    connection_attempts.append(('pcsc', None))
+                elif backend == 'uart' and self.selected_port:
+                    # Try direct UART connection to selected port
+                    connection_attempts.append(('uart', self.selected_port))
+                elif backend == 'uart':
+                    # Try to find compatible serial ports by VID:PID
+                    try:
+                        import serial.tools.list_ports
+                        ports = serial.tools.list_ports.comports()
+                        for port in ports:
+                            if vid_pid_list:
+                                for vid, pid in vid_pid_list:
+                                    if port.vid == vid and port.pid == pid:
+                                        connection_attempts.append(('uart', port.device))
+                                        break
+                    except ImportError:
+                        pass
+        
+        # If no reader-specific strategy, try the selected port directly
+        if self.selected_port and not connection_attempts:
+            try:
+                port_spec = f"tty:{self.selected_port}" if platform.system() != 'Windows' else f"com:{self.selected_port}"
+                connection_attempts.append(('serial', self.selected_port))
+            except:
+                pass
+        
+        # If no specific attempts, try general backends
+        if not connection_attempts:
+            connection_attempts = [
+                ('usb', None),
+                ('pcsc', None),
+                ('uart', None)
+            ]
+        
+        # Try each connection attempt
+        for backend, target in connection_attempts:
+            try:
+                if backend == 'serial':
+                    port_spec = f"tty:{target}" if platform.system() != 'Windows' else f"com:{target}"
+                    self.logger.info(f"Trying NFC reader on {port_spec}")
+                    clf = nfc.ContactlessFrontend(port_spec)
+                    used_backend = f"serial ({target})"
+                elif backend == 'usb':
+                    if target:
+                        self.logger.info(f"Trying NFC reader on USB target: {target}")
+                        clf = nfc.ContactlessFrontend(f"usb:{target}")
+                    else:
+                        self.logger.info("Trying NFC reader on USB backend")
+                        clf = nfc.ContactlessFrontend()
+                    used_backend = "usb"
+                elif backend == 'pcsc':
+                    self.logger.info("Trying NFC reader on PC/SC backend")
+                    clf = nfc.ContactlessFrontend('pcsc')
+                    used_backend = "pcsc"
+                elif backend == 'uart':
+                    if target:
+                        self.logger.info(f"Trying NFC reader on UART target: {target}")
+                        clf = nfc.ContactlessFrontend(f"uart:{target}")
+                    else:
+                        self.logger.info("Trying NFC reader on UART backend")
+                        clf = nfc.ContactlessFrontend('uart')
+                    used_backend = "uart"
+                
+                if clf:
+                    self.logger.info(f"Successfully initialized NFC reader using {used_backend}")
+                    break
+                    
+            except Exception as e:
+                self.logger.debug(f"Failed to connect using {backend}:{target}: {str(e)}")
+                continue
+        
+        # If no connection method worked, show error
+        if not clf:
+            error_msg = (
+                "Could not initialize any NFC backend.\n\n"
+                "Please ensure:\n"
+                "1. Your NFC reader is properly connected\n"
+                "2. Required drivers are installed\n"
+                "3. You have sufficient permissions\n\n"
+                "Try running the NFC Diagnostics tool for more information."
+            )
+            self.error_occurred.emit("NFC Initialization Failed", error_msg)
+            return
+        
+        try:
+            self.clf = clf
+            self.reader_status.emit("connected")
+            self.logger.info(f"NFC reader connected using {used_backend} backend")
+            
+            while self.running:
+                try:
+                    tag = self.clf.connect(
+                        rdwr={
+                            'on-connect': self.on_connect,
+                            'on-discover': self.on_discover,
+                            'on-release': self.on_release,
+                            'beep-on-connect': False,
+                            'targets': ['106A', '106B', '212F', '424F']
+                        },
+                        terminate=lambda: not self.running
+                    )
+                    if tag and self.running:
+                        time.sleep(1)  # Prevent multiple rapid reads
+                except nfc.clf.CommunicationError as e:
+                    self.logger.warning(f"Communication error: {str(e)}")
+                    self.error_occurred.emit("Communication Error", f"NFC communication error: {str(e)}")
+                except Exception as e:
+                    self.logger.error(f"Unexpected error in NFC loop: {str(e)}")
+                    if self.running:
+                        self.error_occurred.emit("NFC Error", f"Unexpected error: {str(e)}")
+                    time.sleep(2)  # Wait before retrying
+                    
+        except KeyboardInterrupt:
+            self.logger.info("NFC thread interrupted by user")
+        except Exception as e:
+            self.logger.error(f"Fatal error in NFC thread: {str(e)}")
+            self.error_occurred.emit("NFC Thread Error", f"Fatal error: {str(e)}")
+        finally:
+            if clf:
+                try:
+                    clf.close()
+                except:
+                    pass
+            self.reader_status.emit("disconnected")
+            self.logger.info("NFC thread stopped")
     
     def on_discover(self, tag):
         """Called when a tag is discovered."""
@@ -604,8 +877,9 @@ class NFCApp(QMainWindow):
         self.device_dock.setWidget(self.device_panel)
         self.addDockWidget(Qt.LeftDockWidgetArea, self.device_dock)
         
-        # Connect signals
+        # Connect device panel signals (after device panel is created)
         self.device_panel.device_connected.connect(self.on_device_connection_changed)
+        self.device_panel.reader_type_changed.connect(self.on_reader_type_changed)
         
         # Status bar
         self.statusBar().showMessage('Ready')
@@ -1105,38 +1379,28 @@ class NFCApp(QMainWindow):
         
         # Apply logging settings
         if 'logging' in settings:
-            import logging
-            from script.logging_utils import setup_logging, DailyRotatingFileHandler
-            
-            # Get log level from settings or default to INFO
             log_level = settings['logging'].get('level', 'INFO').upper()
-            logger = logging.getLogger()
-            logger.setLevel(getattr(logging, log_level, logging.INFO))
-            
-            # Clear existing file handlers to avoid duplicates
-            for handler in logger.handlers[:]:
-                if isinstance(handler, (logging.FileHandler, DailyRotatingFileHandler)):
-                    logger.removeHandler(handler)
+            logging.getLogger().setLevel(getattr(logging, log_level, logging.INFO))
             
             # Configure file logging if enabled
             if settings['logging'].get('to_file', True):
-                log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
-                os.makedirs(log_dir, exist_ok=True)
+                log_file = settings['logging'].get('file_path', 'nfc_reader.log')
+                file_handler = logging.FileHandler(log_file)
+                file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+                logging.getLogger().addHandler(file_handler)
+            
+        # Apply NFC settings
+        if 'nfc' in settings and hasattr(self, 'nfc_thread'):
+            # Update NFC reader timeout
+            if 'reader_timeout' in settings['nfc']:
+                self.nfc_thread.reader_timeout = settings['nfc']['reader_timeout']
                 
-                # Use our custom daily rotating file handler
-                file_handler = DailyRotatingFileHandler(
-                    log_dir=log_dir,
-                    base_filename='nfc_reader',
-                    encoding='utf-8'
-                )
-                file_handler.setFormatter(logging.Formatter(
-                    '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                    datefmt='%Y-%m-%d %H:%M:%S'
-                ))
-                logger.addHandler(file_handler)
-        
+            # Update auto-connect setting
+            if 'auto_connect' in settings['nfc'] and hasattr(self, 'device_panel'):
+                self.device_panel.auto_connect = settings['nfc']['auto_connect']
+            
         self.log("Settings applied successfully")
-    
+        
     def apply_theme(self, theme_name):
         """Apply the selected theme to the application."""
         # This is a basic implementation. You might want to use a stylesheet or a proper theming system.
@@ -1161,7 +1425,7 @@ class NFCApp(QMainWindow):
             """)
         elif theme_name == "Light":
             self.setStyleSheet("""
-                QMainWindow, QDialog {
+                QMainWindow, QDialog, QWidget {
                     background-color: #f0f0f0;
                     color: #000000;
                 }
@@ -1310,6 +1574,20 @@ class NFCApp(QMainWindow):
             if hasattr(self.nfc_thread, 'clf') and self.nfc_thread.clf:
                 self.nfc_thread.clf.close()
     
+    def on_reader_type_changed(self, reader_type):
+        """Handle reader type changes."""
+        self.log(f"Reader type changed to: {reader_type}")
+        
+        # Update NFC thread with new reader type
+        if hasattr(self, 'device_panel'):
+            reader_config = self.device_panel.get_reader_config()
+            self.nfc_thread.set_reader_type(reader_type, reader_config)
+            
+            # Restart NFC thread with new reader type
+            if self.nfc_thread.isRunning():
+                self.nfc_thread.stop()
+            self.nfc_thread.start()
+    
     def start_reading(self):
         """Start reading NFC tags."""
         self.nfc_thread.read_mode = True
@@ -1356,6 +1634,76 @@ class NFCApp(QMainWindow):
         self.statusBar().showMessage("Ready to write to tags...", 3000)
         self.log(f"Ready to write to NFC tags: {text[:50]}..." if len(text) > 50 else text)
 
+    def run_diagnostics(self):
+        """Run NFC diagnostics and show results in a dialog."""
+        try:
+            from script.nfc_diagnostics import run_diagnostics as run_nfc_diagnostics
+            
+            # Create a dialog to show diagnostics results
+            dialog = QDialog(self)
+            dialog.setWindowTitle("NFC Diagnostics")
+            dialog.setMinimumSize(600, 400)
+            
+            layout = QVBoxLayout()
+            
+            # Create text area for diagnostics output
+            text_area = QTextEdit()
+            text_area.setReadOnly(True)
+            text_area.setFont(QtGui.QFont("Consolas", 9))
+            
+            # Add buttons
+            button_layout = QHBoxLayout()
+            
+            refresh_btn = QPushButton("Refresh")
+            refresh_btn.clicked.connect(lambda: self._refresh_diagnostics(text_area))
+            
+            close_btn = QPushButton("Close")
+            close_btn.clicked.connect(dialog.close)
+            
+            button_layout.addWidget(refresh_btn)
+            button_layout.addStretch()
+            button_layout.addWidget(close_btn)
+            
+            layout.addWidget(QLabel("NFC Diagnostics Results:"))
+            layout.addWidget(text_area)
+            layout.addLayout(button_layout)
+            
+            dialog.setLayout(layout)
+            
+            # Run initial diagnostics
+            self._refresh_diagnostics(text_area)
+            
+            dialog.exec()
+            
+        except ImportError:
+            QMessageBox.warning(self, "Diagnostics Error", 
+                              "NFC diagnostics module not found. Please ensure script/nfc_diagnostics.py exists.")
+        except Exception as e:
+            QMessageBox.critical(self, "Diagnostics Error", 
+                               f"Failed to run NFC diagnostics: {str(e)}")
+    
+    def _refresh_diagnostics(self, text_area):
+        """Refresh diagnostics results in the text area."""
+        try:
+            import io
+            import sys
+            from script.nfc_diagnostics import run_diagnostics
+            
+            # Capture stdout
+            old_stdout = sys.stdout
+            sys.stdout = captured_output = io.StringIO()
+            
+            try:
+                run_diagnostics()
+                output = captured_output.getvalue()
+            finally:
+                sys.stdout = old_stdout
+            
+            text_area.setPlainText(output)
+            
+        except Exception as e:
+            text_area.setPlainText(f"Error running diagnostics: {str(e)}\n\n{traceback.format_exc()}")
+
 def main():
     # Set application metadata
     app = QApplication(sys.argv)
@@ -1364,9 +1712,12 @@ def main():
     app.setOrganizationName("Nsfr750")
     app.setOrganizationDomain("github.com/Nsfr750")
     
-    # Enable high DPI scaling
-    app.setAttribute(Qt.AA_EnableHighDpiScaling, True)
-    app.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
+    # Enable high DPI scaling - use modern attributes
+    app.setAttribute(Qt.ApplicationAttribute.AA_EnableHighDpiScaling, True)
+    app.setAttribute(Qt.ApplicationAttribute.AA_UseHighDpiPixmaps, True)
+    
+    # Set modern style for better appearance
+    app.setStyle('Fusion')
     
     # Create and show main window
     window = NFCApp()
@@ -1378,9 +1729,6 @@ def main():
     
     # Start the NFC reader thread
     window.nfc_thread.start()
-    
-    # Set up application style and theme
-    app.setStyle('Fusion')
     
     sys.exit(app.exec())
 
